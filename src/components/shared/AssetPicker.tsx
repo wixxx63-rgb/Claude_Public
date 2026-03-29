@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useStore } from '../../store'
 import type { Asset, AssetType } from '../../types'
 import { v4 as uuidv4 } from 'uuid'
+import { fileUrl } from '../../utils/fileUrl'
 
 interface Props {
   type: AssetType
@@ -24,11 +25,16 @@ export default function AssetPicker({ type, value, assets, onChange, preview }: 
     const filePath = await window.electronAPI?.openFile(ext)
     if (!filePath) return
 
-    const fileName = filePath.split('/').pop()!
+    // Support both Windows (\) and Unix (/) path separators
+    const fileName = filePath.split(/[/\\]/).pop()!
     const projectDir = project.projectPath
-      ? project.projectPath.replace(/\/[^/]+$/, '')
-      : '/tmp/narrative-flow'
-    const destDir = `${projectDir}/assets`
+      ? project.projectPath.replace(/[/\\][^/\\]+$/, '')
+      : null
+    if (!projectDir) {
+      alert('Please save your project first before importing assets.')
+      return
+    }
+    const destDir = projectDir + '/assets'
     const destPath = await window.electronAPI?.copyAsset(filePath, destDir)
     if (!destPath) return
 
@@ -49,7 +55,7 @@ export default function AssetPicker({ type, value, assets, onChange, preview }: 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
         {preview && type === 'image' ? (
           <img
-            src={`file://${preview.path}`}
+            src={fileUrl(preview.path)}
             style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4, border: '1px solid #2a3448' }}
             alt={preview.name}
           />
@@ -91,7 +97,7 @@ export default function AssetPicker({ type, value, assets, onChange, preview }: 
                   {type === 'image' ? (
                     <>
                       <img
-                        src={`file://${a.path}`}
+                        src={fileUrl(a.path)}
                         style={{ width: 88, height: 60, objectFit: 'cover', borderRadius: 3, display: 'block' }}
                         alt={a.name}
                       />

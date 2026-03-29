@@ -1,6 +1,7 @@
 import React from 'react'
 import { useStore } from '../../store'
 import type { StoryNode, DialogueLine, Asset, Character } from '../../types'
+import { fileUrl } from '../../utils/fileUrl'
 
 interface Props {
   node: StoryNode
@@ -60,7 +61,7 @@ export default function ScenePreview({ node, currentLine, assets, characters }: 
       {/* Background */}
       {bgAsset ? (
         <img
-          src={`file://${bgAsset.path}`}
+          src={fileUrl(bgAsset.path)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           alt="background"
         />
@@ -106,7 +107,7 @@ export default function ScenePreview({ node, currentLine, assets, characters }: 
             >
               {spriteAsset ? (
                 <img
-                  src={`file://${spriteAsset.path}`}
+                  src={fileUrl(spriteAsset.path)}
                   style={{ maxHeight: 280, objectFit: 'contain' }}
                   alt={char.name}
                 />

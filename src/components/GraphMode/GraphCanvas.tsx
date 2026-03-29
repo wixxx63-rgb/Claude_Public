@@ -43,12 +43,15 @@ export default function GraphCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const animFrameRef = useRef<number>(0)
+  const linkDragRafRef = useRef<number>(0)
   const transformRef = useRef<CanvasTransform>({ x: 0, y: 0, scale: 1 })
   const dragRef = useRef<DragState | null>(null)
   const linkDragRef = useRef<LinkDragState | null>(null)
   const panRef = useRef<{ startX: number; startY: number; origTX: number; origTY: number } | null>(null)
   const [popover, setPopover] = useState<PopoverState | null>(null)
   const autoAnimRef = useRef<{ targets: { id: string; x: number; y: number }[]; start: number } | null>(null)
+  // Always points to the latest draw() function so event handlers can call it
+  const drawFnRef = useRef<() => void>(() => {})
 
   const { project, selectedNodeId, canvasTransform, linkModeActive, searchQuery } = useStore(s => ({
     project: s.project,
@@ -405,6 +408,26 @@ export default function GraphCanvas() {
     return truncated + '…'
   }
 
+  // Keep drawFnRef pointing to the latest draw() so event-handler closures can call it
+  drawFnRef.current = draw
+
+  function startLinkDragLoop() {
+    cancelAnimationFrame(linkDragRafRef.current)
+    function loop() {
+      drawFnRef.current()
+      if (linkDragRef.current) {
+        linkDragRafRef.current = requestAnimationFrame(loop)
+      }
+    }
+    linkDragRafRef.current = requestAnimationFrame(loop)
+  }
+
+  function cancelLinkDrag() {
+    linkDragRef.current = null
+    cancelAnimationFrame(linkDragRafRef.current)
+    drawFnRef.current()
+  }
+
   // ── Mouse Events ──────────────────────────────────────────────────────
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -424,6 +447,7 @@ export default function GraphCanvas() {
         curX: wx,
         curY: wy
       }
+      startLinkDragLoop()
       return
     }
 
@@ -491,8 +515,18 @@ export default function GraphCanvas() {
     // Link drag release
     if (linkDragRef.current) {
       const ld = linkDragRef.current
+      cancelAnimationFrame(linkDragRafRef.current)
       const targetNode = getNodeAtScreen(sx, sy)
       if (targetNode && targetNode.id !== ld.fromId) {
+        // Prevent duplicate edges
+        const alreadyExists = project.edges.some(
+          e => e.from === ld.fromId && e.to === targetNode.id
+        )
+        if (alreadyExists) {
+          linkDragRef.current = null
+          drawFnRef.current()
+          return
+        }
         // Show popover for edge label
         const t = transformRef.current
         const fromNode = project.nodes.find(n => n.id === ld.fromId)
@@ -508,6 +542,7 @@ export default function GraphCanvas() {
         })
       }
       linkDragRef.current = null
+      drawFnRef.current()
       return
     }
 
@@ -528,7 +563,7 @@ export default function GraphCanvas() {
       if (dragDist < 5) setSelectedNode(null)  // It was a click, not a pan
       panRef.current = null
     }
-  }, [navigateTo, setSelectedNode, project.nodes])
+  }, [navigateTo, setSelectedNode, project.nodes, project.edges])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const sx = e.nativeEvent.offsetX
@@ -636,6 +671,7 @@ export default function GraphCanvas() {
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
+        onMouseLeave={() => { if (linkDragRef.current) cancelLinkDrag() }}
       />
       <Minimap
         nodes={project.nodes}

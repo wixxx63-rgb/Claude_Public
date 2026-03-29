@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '../../store'
 import type { Character, VariableState } from '../../types'
 import { buildDefaultState, applyEffects, applyBranchEffects, evaluateCondition } from '../../utils/variables'
+import { fileUrl } from '../../utils/fileUrl'
 
 interface PlayState {
   nodeId: string
@@ -59,7 +60,7 @@ export default function PlayEngine() {
     if (currentNode.music) {
       const asset = project.assets.find(a => a.id === currentNode.music)
       if (asset) {
-        const audio = new Audio(`file://${asset.path}`)
+        const audio = new Audio(fileUrl(asset.path))
         audio.loop = true
         audio.volume = volume
         audio.play().catch(() => {})
@@ -87,7 +88,7 @@ export default function PlayEngine() {
       if (line.sfx) {
         const asset = project.assets.find(a => a.id === line.sfx)
         if (asset) {
-          sfxRef.current = new Audio(`file://${asset.path}`)
+          sfxRef.current = new Audio(fileUrl(asset.path))
           sfxRef.current.volume = volume
           sfxRef.current.play().catch(() => {})
         }
@@ -222,7 +223,7 @@ export default function PlayEngine() {
       {/* Background */}
       {bgAsset ? (
         <img
-          src={`file://${bgAsset.path}`}
+          src={fileUrl(bgAsset.path)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           alt=""
         />
@@ -261,7 +262,7 @@ export default function PlayEngine() {
               }}>
                 {spriteAsset ? (
                   <img
-                    src={`file://${spriteAsset.path}`}
+                    src={fileUrl(spriteAsset.path)}
                     style={{ maxHeight: '60vh', objectFit: 'contain' }}
                     alt={char.name}
                   />
