@@ -5,13 +5,15 @@ Unicode True
 !define APP_VERSION "1.0.0"
 !define APP_EXE "Narrative Flow.exe"
 !define APP_PUBLISHER "Narrative Flow"
-!define INSTALL_DIR "$PROGRAMFILES64\Narrative Flow"
+; Install to AppData\Local\Programs — no admin/UAC needed (like Chrome, Discord, VS Code)
+!define INSTALL_DIR "$LOCALAPPDATA\Programs\Narrative Flow"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\NarrativeFlow"
 
 Name "${APP_NAME}"
 OutFile "release\Narrative Flow Setup 1.0.0.exe"
 InstallDir "${INSTALL_DIR}"
 InstallDirRegKey HKCU "Software\NarrativeFlow" "InstallDir"
+; user level = no UAC prompt required
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 
@@ -45,12 +47,14 @@ Section "Install"
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  ; Add/Remove Programs entry
+  ; Add/Remove Programs entry (HKCU = no admin needed)
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${APP_PUBLISHER}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" 262144
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 
