@@ -1,0 +1,82 @@
+import { XMLParser, XMLBuilder } from 'fast-xml-parser'
+import type { Project, ExportData } from '../types'
+
+export function buildExportData(project: Project): ExportData {
+  return {
+    meta: {
+      app: 'Narrative Flow',
+      version: '2.0',
+      exported: new Date().toISOString(),
+      projectName: project.name
+    },
+    nodes: project.nodes,
+    edges: project.edges,
+    characters: project.characters,
+    variables: project.variables,
+    assets: project.assets
+  }
+}
+
+export function exportJSON(project: Project): string {
+  return JSON.stringify(buildExportData(project), null, 2)
+}
+
+export function exportXML(project: Project): string {
+  const data = buildExportData(project)
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    format: true,
+    indentBy: '  ',
+    arrayNodeName: 'item',
+    suppressBooleanAttributes: false
+  })
+  return builder.build({ narrativeFlow: data })
+}
+
+export function importJSON(json: string): Partial<Project> | null {
+  try {
+    const data: ExportData = JSON.parse(json)
+    if (!data.meta || data.meta.app !== 'Narrative Flow') return null
+    return {
+      name: data.meta.projectName,
+      nodes: data.nodes ?? [],
+      edges: data.edges ?? [],
+      characters: data.characters ?? [],
+      variables: data.variables ?? [],
+      assets: data.assets ?? []
+    }
+  } catch {
+    return null
+  }
+}
+
+export function importXML(xml: string): Partial<Project> | null {
+  try {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      parseTagValue: true,
+      parseAttributeValue: true,
+      isArray: (name) => {
+        const arrays = [
+          'nodes', 'edges', 'characters', 'variables', 'assets',
+          'branches', 'dialogueLines', 'chars', 'effects', 'leads',
+          'sprites', 'variables', 'item'
+        ]
+        return arrays.includes(name)
+      }
+    })
+    const parsed = parser.parse(xml)
+    const data = parsed.narrativeFlow as ExportData
+    if (!data?.meta || data.meta.app !== 'Narrative Flow') return null
+    return {
+      name: data.meta.projectName,
+      nodes: data.nodes ?? [],
+      edges: data.edges ?? [],
+      characters: data.characters ?? [],
+      variables: data.variables ?? [],
+      assets: data.assets ?? []
+    }
+  } catch {
+    return null
+  }
+}
