@@ -2,12 +2,57 @@
   "name": "narrative-flow",
   "version": "1.0.0",
   "description": "Visual Novel Builder - Graph editor and story engine",
-  "main": "dist-electron/main.js",
+  "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "start": "electron ."
+    "dist:win": "electron-vite build && electron-builder --win --x64",
+    "dist:linux": "electron-vite build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.narrativeflow.app",
+    "productName": "Narrative Flow",
+    "copyright": "Copyright © 2025",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "out/main/index.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.ico",
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Narrative Flow"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "resources/icon.png",
+      "category": "Office"
+    },
+    "publish": null
   },
   "dependencies": {
     "fast-xml-parser": "^4.3.6",
@@ -25,6 +70,7 @@
     "@types/uuid": "^9.0.0",
     "@vitejs/plugin-react": "^4.2.0",
     "electron": "^29.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
