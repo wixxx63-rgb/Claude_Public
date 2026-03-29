@@ -495,9 +495,10 @@ export default function GraphCanvas() {
       if (targetNode && targetNode.id !== ld.fromId) {
         // Show popover for edge label
         const t = transformRef.current
+        const fromNode = project.nodes.find(n => n.id === ld.fromId)
         const [fx, fy] = worldToScreen(
-          (project.nodes.find(n => n.id === ld.fromId)?.x ?? 0) + NODE_RADIUS / 2,
-          project.nodes.find(n => n.id === ld.fromId)?.y ?? 0, t
+          (fromNode?.x ?? 0) + NODE_RADIUS / 2,
+          fromNode?.y ?? 0, t
         )
         setPopover({
           x: (sx + fx) / 2,
@@ -521,10 +522,10 @@ export default function GraphCanvas() {
       return
     }
 
-    // Background click — deselect
+    // Background click — deselect (only if not dragging/panning)
     if (panRef.current) {
-      const moved = Math.abs(sx - panRef.current.startX) + Math.abs(sy - panRef.current.startY) < 5
-      if (moved) setSelectedNode(null)
+      const dragDist = Math.abs(sx - panRef.current.startX) + Math.abs(sy - panRef.current.startY)
+      if (dragDist < 5) setSelectedNode(null)  // It was a click, not a pan
       panRef.current = null
     }
   }, [navigateTo, setSelectedNode, project.nodes])

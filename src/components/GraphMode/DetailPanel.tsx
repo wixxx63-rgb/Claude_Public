@@ -63,11 +63,12 @@ export default function DetailPanel() {
 
   function handleNext() {
     const sequential = outgoingEdges.filter(e => !e.label)
-    if (sequential.length === 1) {
+    if (sequential.length >= 1) {
+      // Navigate to existing sequential edge — never create a duplicate
       navigateTo(sequential[0].to)
       return
     }
-    // Create new node
+    // No sequential edge exists — create new node
     const newNode = createNodeAt(node.x, node.y + 220)
     const edge = { id: uuidv4(), from: node.id, to: newNode.id, label: '', desc: '', isDeath: false }
     addEdge(edge)
@@ -470,7 +471,7 @@ function EditableTitle({ node, onUpdate }: { node: StoryNode; onUpdate: (v: stri
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(node.title)
 
-  useEffect(() => { setVal(node.title) }, [node.id])
+  useEffect(() => { if (!editing) setVal(node.title) }, [node.id, node.title, editing])
 
   if (!editing) {
     return (

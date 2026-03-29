@@ -19,6 +19,7 @@ export default function AddChoicesForm({ node, onClose }: Props) {
   const updateNode = useStore(s => s.updateNode)
   const addEdge = useStore(s => s.addEdge)
   const createNodeAt = useStore(s => s.createNodeAt)
+  const snapshotForUndo = useStore(s => s.snapshotForUndo)
 
   const existingOutgoing = project.edges.filter(e => e.from === node.id)
 
@@ -46,6 +47,7 @@ export default function AddChoicesForm({ node, onClose }: Props) {
   function confirm() {
     const nonEmpty = choices.filter(c => c.text.trim())
     if (!nonEmpty.length) { onClose(); return }
+    snapshotForUndo('node_created')
 
     const spread = nonEmpty.length
     const startX = node.x - ((spread - 1) / 2) * 280

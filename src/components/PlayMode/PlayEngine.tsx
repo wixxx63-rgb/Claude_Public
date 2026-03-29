@@ -45,7 +45,7 @@ export default function PlayEngine() {
     })
     // End transition
     setTimeout(() => setState(s => s ? { ...s, transitioning: false } : s), 600)
-  }, [mode, playFromNodeId])
+  }, [mode, playFromNodeId, project.variables])
 
   const currentNode = state ? project.nodes.find(n => n.id === state.nodeId) : null
 
@@ -140,7 +140,7 @@ export default function PlayEngine() {
     const branch = currentNode.branches.find(b => b.option === branchOption)
     if (!branch) return
 
-    let newVars = applyBranchEffects(state.varState, branch.effects)
+    let newVars = applyBranchEffects(state.varState, branch.effects, project.variables)
 
     const target = branch.leads[0]
     if (!target) return

@@ -27,7 +27,7 @@ export function applyEffects(state: VariableState, effects: VariableEffect[]): V
   return next
 }
 
-export function applyBranchEffects(state: VariableState, effects: string[]): VariableState {
+export function applyBranchEffects(state: VariableState, effects: string[], variables: Variable[]): VariableState {
   const next = { ...state }
   effects.forEach(effect => {
     // Parse patterns: "loyalty+1", "loyalty=high", "PATH_C:open", "knows_secret=true"
@@ -36,15 +36,15 @@ export function applyBranchEffects(state: VariableState, effects: string[]): Var
     const eqMatch = effect.match(/^(\w+)[=:](.+)$/)
     if (addMatch) {
       const [, name, val] = addMatch
-      const varId = findVarId(state, name)
+      const varId = findVarId(name, variables)
       if (varId) next[varId] = (Number(next[varId]) || 0) + Number(val)
     } else if (subMatch) {
       const [, name, val] = subMatch
-      const varId = findVarId(state, name)
+      const varId = findVarId(name, variables)
       if (varId) next[varId] = (Number(next[varId]) || 0) - Number(val)
     } else if (eqMatch) {
       const [, name, val] = eqMatch
-      const varId = findVarId(state, name)
+      const varId = findVarId(name, variables)
       if (varId) {
         if (val === 'true') next[varId] = true
         else if (val === 'false') next[varId] = false
@@ -56,11 +56,10 @@ export function applyBranchEffects(state: VariableState, effects: string[]): Var
   return next
 }
 
-function findVarId(state: VariableState, name: string): string | null {
-  // In branch effects we use variable names; try to match by name
-  // Since state keys are IDs, we store a name mapping externally
-  // For simplicity we also allow ID-based references
-  return Object.keys(state).includes(name) ? name : null
+function findVarId(name: string, variables: Variable[]): string | null {
+  // Match by variable name (for branch effect strings like "loyalty+1")
+  const v = variables.find(v => v.name === name)
+  return v ? v.id : null
 }
 
 export function evaluateCondition(condition: string | null, state: VariableState, variables: Variable[]): boolean {
