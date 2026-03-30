@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../store'
 import { exportJSON, exportXML, importJSON, importXML } from '../utils/exportImport'
 import { v4 as uuidv4 } from 'uuid'
 import type { Project } from '../types'
 import CharacterManager from './CharacterManager'
 import VariableManager from './VariableManager'
+import HtmlExportModal from './HtmlExportModal'
+import { detectConflicts } from '../utils/conflictDetector'
 
 export default function Toolbar() {
   const {
-    mode, project, isDirty, linkModeActive, sceneNodeId, undoStack, redoStack
+    mode, project, isDirty, linkModeActive, sceneNodeId, undoStack, redoStack,
+    timelineVisible, simulatorOpen, conflictsPanelOpen, statisticsOpen, writersRoomOpen, findBarOpen,
   } = useStore(s => ({
     mode: s.mode,
     project: s.project,
@@ -16,7 +19,13 @@ export default function Toolbar() {
     linkModeActive: s.linkModeActive,
     sceneNodeId: s.sceneNodeId,
     undoStack: s.undoStack,
-    redoStack: s.redoStack
+    redoStack: s.redoStack,
+    timelineVisible: s.timelineVisible,
+    simulatorOpen: s.simulatorOpen,
+    conflictsPanelOpen: s.conflictsPanelOpen,
+    statisticsOpen: s.statisticsOpen,
+    writersRoomOpen: s.writersRoomOpen,
+    findBarOpen: s.findBarOpen,
   }))
 
   const setMode = useStore(s => s.setMode)
@@ -28,11 +37,26 @@ export default function Toolbar() {
   const markSaved = useStore(s => s.markSaved)
   const undo = useStore(s => s.undo)
   const redo = useStore(s => s.redo)
+  const setTimelineVisible = useStore(s => s.setTimelineVisible)
+  const setSimulatorOpen = useStore(s => s.setSimulatorOpen)
+  const setConflictsPanelOpen = useStore(s => s.setConflictsPanelOpen)
+  const setStatisticsOpen = useStore(s => s.setStatisticsOpen)
+  const setWritersRoomOpen = useStore(s => s.setWritersRoomOpen)
+  const setFindBarOpen = useStore(s => s.setFindBarOpen)
 
   const [showCharManager, setShowCharManager] = useState(false)
   const [showVarManager, setShowVarManager] = useState(false)
+  const [showHtmlExport, setShowHtmlExport] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [searchVal, setSearchVal] = useState('')
+
+  // Conflict badge count
+  const conflictErrorCount = useMemo(() => {
+    if (!conflictsPanelOpen && mode === 'graph') {
+      return detectConflicts(project).filter(i => i.severity === 'error').length
+    }
+    return 0
+  }, [project.nodes, project.edges, project.variables, mode])
 
   // Update save indicator
   useEffect(() => {
@@ -44,12 +68,13 @@ export default function Toolbar() {
     }
   }, [isDirty, project.lastSaved])
 
-  // Undo/redo keyboard shortcuts
+  // Undo/redo + find keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
       if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo() }
       if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); setFindBarOpen(true) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -111,6 +136,8 @@ export default function Toolbar() {
       characters: data.characters ?? [],
       variables: data.variables ?? [],
       assets: data.assets ?? [],
+      playthroughs: data.playthroughs ?? [],
+      writerRoom: data.writerRoom ?? [],
       projectPath: filePath.endsWith('.nflow') ? filePath : null,
       lastSaved: null
     }
@@ -199,12 +226,101 @@ export default function Toolbar() {
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
               onClick={() => setShowVarManager(true)}>Variables</button>
 
+            <div style={{ width: 1, height: 16, background: '#2a3448', flexShrink: 0 }} />
+
+            {/* Timeline */}
+            <button
+              className="btn"
+              style={{
+                fontSize: 12, padding: '4px 10px',
+                background: timelineVisible ? '#1a3060' : 'transparent',
+                border: `1px solid ${timelineVisible ? '#4a80d4' : '#2a3448'}`,
+                color: timelineVisible ? '#4a80d4' : '#9aa5bb',
+              }}
+              onClick={() => setTimelineVisible(!timelineVisible)}
+              title="Timeline view"
+            >Timeline</button>
+
+            {/* Simulator */}
+            <button
+              className="btn"
+              style={{
+                fontSize: 12, padding: '4px 10px',
+                background: simulatorOpen ? '#1a3060' : 'transparent',
+                border: `1px solid ${simulatorOpen ? '#4a80d4' : '#2a3448'}`,
+                color: simulatorOpen ? '#4a80d4' : '#9aa5bb',
+              }}
+              onClick={() => setSimulatorOpen(!simulatorOpen)}
+              title="Playthrough Simulator"
+            >Simulate</button>
+
+            {/* Conflicts */}
+            <button
+              className="btn"
+              style={{
+                fontSize: 12, padding: '4px 10px',
+                background: conflictsPanelOpen ? '#301010' : 'transparent',
+                border: `1px solid ${conflictsPanelOpen ? '#d04040' : '#2a3448'}`,
+                color: conflictsPanelOpen ? '#d04040' : '#9aa5bb',
+                position: 'relative',
+              }}
+              onClick={() => setConflictsPanelOpen(!conflictsPanelOpen)}
+              title="Conflict Detector"
+            >
+              Conflicts
+              {conflictErrorCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -5, right: -5,
+                  background: '#d04040', color: '#fff',
+                  fontSize: 10, fontWeight: 700, borderRadius: 8,
+                  padding: '0 4px', lineHeight: '14px',
+                  pointerEvents: 'none',
+                }}>{conflictErrorCount}</span>
+              )}
+            </button>
+
+            {/* Stats */}
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={() => setStatisticsOpen(true)}
+              title="Statistics">Stats</button>
+
+            {/* Writer's Room */}
+            <button
+              className="btn"
+              style={{
+                fontSize: 12, padding: '4px 10px',
+                background: writersRoomOpen ? '#102040' : 'transparent',
+                border: `1px solid ${writersRoomOpen ? '#4a80d4' : '#2a3448'}`,
+                color: writersRoomOpen ? '#4a80d4' : '#9aa5bb',
+              }}
+              onClick={() => setWritersRoomOpen(!writersRoomOpen)}
+              title="Writer's Room"
+            >Writer's Room</button>
+
+            {/* Export HTML */}
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={() => setShowHtmlExport(true)}
+              title="Export Playable HTML">HTML Export</button>
+
+            {/* Find */}
+            <button
+              className="btn"
+              style={{
+                fontSize: 12, padding: '4px 10px',
+                background: findBarOpen ? '#102040' : 'transparent',
+                border: `1px solid ${findBarOpen ? '#4a80d4' : '#2a3448'}`,
+                color: findBarOpen ? '#4a80d4' : '#9aa5bb',
+              }}
+              onClick={() => setFindBarOpen(!findBarOpen)}
+              title="Find & Replace (Ctrl+F)"
+            >Find</button>
+
             {/* Search */}
             <input
               value={searchVal}
               onChange={e => { setSearchVal(e.target.value); setSearchQuery(e.target.value) }}
               placeholder="Search…"
-              style={{ width: 140, fontSize: 12, padding: '4px 10px' }}
+              style={{ width: 120, fontSize: 12, padding: '4px 10px' }}
             />
           </div>
         )}
@@ -256,6 +372,7 @@ export default function Toolbar() {
 
       {showCharManager && <CharacterManager onClose={() => setShowCharManager(false)} />}
       {showVarManager && <VariableManager onClose={() => setShowVarManager(false)} />}
+      {showHtmlExport && <HtmlExportModal onClose={() => setShowHtmlExport(false)} />}
     </>
   )
 }

@@ -94,6 +94,58 @@ export interface Edge {
   isDeath: boolean
 }
 
+// ── Playthrough Simulator ─────────────────────────────────────────────────
+
+export interface PlaythroughStep {
+  nodeId: string
+  nodeTitle: string
+  choiceMade: string | null   // branch.option or null if sequential
+  choiceDesc: string | null
+  effectsApplied: string[]    // human-readable e.g. "loyalty +1"
+  varStateAfter: VariableState
+}
+
+export interface Playthrough {
+  id: string
+  name: string
+  startNodeId: string
+  steps: PlaythroughStep[]
+  endNodeId: string | null
+  endType: 'ending' | 'death' | 'stopped'
+  createdAt: number
+}
+
+// ── Writer's Room ─────────────────────────────────────────────────────────
+
+export interface WriterRoomSection {
+  id: string
+  title: string
+  content: string
+  order: number
+}
+
+// ── Conflict Detector (UI-only, not persisted) ────────────────────────────
+
+export type ConflictIssueType =
+  | 'orphan'
+  | 'dead-end'
+  | 'broken-connection'
+  | 'empty-decision'
+  | 'undefined-variable'
+  | 'unwritten'
+  | 'circular-trap'
+
+export interface ConflictIssue {
+  id: string
+  type: ConflictIssueType
+  severity: 'error' | 'warning' | 'info'
+  nodeId: string | null
+  description: string
+  suggestion: string
+}
+
+// ── Project ───────────────────────────────────────────────────────────────
+
 export interface Project {
   id: string
   name: string
@@ -104,6 +156,9 @@ export interface Project {
   assets: Asset[]
   projectPath: string | null
   lastSaved: number | null
+  // New persisted fields:
+  playthroughs: Playthrough[]
+  writerRoom: WriterRoomSection[]
 }
 
 // ── App Mode ──────────────────────────────────────────────────────────────
@@ -151,6 +206,8 @@ export interface ExportData {
   characters: Character[]
   variables: Variable[]
   assets: Asset[]
+  playthroughs?: Playthrough[]
+  writerRoom?: WriterRoomSection[]
 }
 
 // ── Variable Runtime ──────────────────────────────────────────────────────
@@ -166,10 +223,12 @@ export interface ElectronAPI {
     defaultPath?: string
   ) => Promise<string | null>
   readFile: (path: string) => Promise<string | null>
+  readFileBase64: (path: string) => Promise<string | null>
   writeFile: (path: string, content: string) => Promise<boolean>
   copyAsset: (src: string, destDir: string) => Promise<string | null>
   exists: (path: string) => Promise<boolean>
   openExternal: (url: string) => Promise<void>
+  showItemInFolder: (path: string) => Promise<void>
 }
 
 declare global {

@@ -78,4 +78,10 @@ ipcMain.handle('fs:copyAsset', (_e, src, destDir) => {
 
 ipcMain.handle('fs:exists', (_e, path) => existsSync(path))
 
+ipcMain.handle('fs:readFileBase64', (_e, path) => {
+  try { return readFileSync(path).toString('base64') } catch { return null }
+})
+
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url))
+
+ipcMain.handle('shell:showItemInFolder', (_e, path) => shell.showItemInFolder(path))

@@ -13,7 +13,9 @@ export function buildExportData(project: Project): ExportData {
     edges: project.edges,
     characters: project.characters,
     variables: project.variables,
-    assets: project.assets
+    assets: project.assets,
+    playthroughs: project.playthroughs,
+    writerRoom: project.writerRoom
   }
 }
 
@@ -43,7 +45,9 @@ export function importJSON(json: string): Partial<Project> | null {
       edges: data.edges ?? [],
       characters: data.characters ?? [],
       variables: data.variables ?? [],
-      assets: data.assets ?? []
+      assets: data.assets ?? [],
+      playthroughs: data.playthroughs ?? [],
+      writerRoom: data.writerRoom ?? []
     }
   } catch {
     return null
@@ -74,7 +78,9 @@ export function importXML(xml: string): Partial<Project> | null {
       edges: data.edges ?? [],
       characters: data.characters ?? [],
       variables: data.variables ?? [],
-      assets: data.assets ?? []
+      assets: data.assets ?? [],
+      playthroughs: data.playthroughs ?? [],
+      writerRoom: data.writerRoom ?? []
     }
   } catch {
     return null

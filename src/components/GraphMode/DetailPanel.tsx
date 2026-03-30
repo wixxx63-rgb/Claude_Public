@@ -3,6 +3,7 @@ import { useStore } from '../../store'
 import type { StoryNode, Branch, NodeType, NodeStatus, BlockType, TransitionType } from '../../types'
 import { v4 as uuidv4 } from 'uuid'
 import AddChoicesForm from './AddChoicesForm'
+import DependencyMap from './DependencyMap'
 
 const NODE_TYPES: NodeType[] = ['scene', 'decision', 'grok', 'death', 'ending']
 const STATUS_OPTIONS: { value: NodeStatus; label: string }[] = [
@@ -36,6 +37,7 @@ export default function DetailPanel() {
 
   const [showAddChoices, setShowAddChoices] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDepsMap, setShowDepsMap] = useState(false)
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const nodeOrUndef = project.nodes.find(n => n.id === selectedNodeId)
@@ -439,11 +441,20 @@ export default function DetailPanel() {
           <button className="btn btn-danger" style={{ flex: 1, fontSize: 12 }}
             onClick={() => setShowDeleteConfirm(true)}>Delete</button>
         </div>
+        <button className="btn btn-ghost" style={{ width: '100%', fontSize: 12, marginTop: 6, color: '#9aa5bb' }}
+          onClick={() => setShowDepsMap(true)}>
+          Dependencies
+        </button>
       </div>
 
       {/* Add choices form */}
       {showAddChoices && (
         <AddChoicesForm node={node} onClose={() => setShowAddChoices(false)} />
+      )}
+
+      {/* Dependency Map */}
+      {showDepsMap && (
+        <DependencyMap node={node} onClose={() => setShowDepsMap(false)} />
       )}
 
       {/* Delete confirm */}

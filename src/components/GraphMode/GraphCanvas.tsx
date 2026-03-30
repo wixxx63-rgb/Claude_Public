@@ -5,6 +5,7 @@ import { computeAutoLayout } from '../../utils/autoLayout'
 import { v4 as uuidv4 } from 'uuid'
 import Minimap from './Minimap'
 import EdgePopover from './EdgePopover'
+import { traceForward, traceBackward, traceEdges } from '../../utils/pathTracer'
 
 const NODE_RADIUS = 52
 const COLORS = {
@@ -68,6 +69,11 @@ export default function GraphCanvas() {
   const addEdge = useStore(s => s.addEdge)
   const createNodeAt = useStore(s => s.createNodeAt)
   const setMode = useStore(s => s.setMode)
+
+  // Path tracer state (local — not needed in store for this use)
+  const [pathTracerNodeId, setPathTracerNodeId] = useState<string | null>(null)
+  const [pathTracerToast, setPathTracerToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep transform ref in sync
   useEffect(() => {
@@ -145,7 +151,7 @@ export default function GraphCanvas() {
 
     // Determine dim/highlight state
     const dimmed = new Set<string>()
-    if (selectedNodeId) {
+    if (selectedNodeId && !pathTracerNodeId) {
       const outgoing = project.edges.filter(e => e.from === selectedNodeId).map(e => e.to)
       const connected = new Set([selectedNodeId, ...outgoing])
       project.nodes.forEach(n => { if (!connected.has(n.id)) dimmed.add(n.id) })
@@ -163,16 +169,33 @@ export default function GraphCanvas() {
       })
     }
 
+    // Path tracer highlight
+    let tracedNodes = new Set<string>()
+    let tracedEdges = new Set<string>()
+    if (pathTracerNodeId) {
+      const tracerNode = project.nodes.find(n => n.id === pathTracerNodeId)
+      if (tracerNode) {
+        const isEnd = tracerNode.type === 'ending' || tracerNode.type === 'death'
+        tracedNodes = isEnd
+          ? traceBackward(pathTracerNodeId, project.nodes, project.edges)
+          : traceForward(pathTracerNodeId, project.nodes, project.edges)
+        tracedEdges = traceEdges(tracedNodes, project.edges)
+      }
+    }
+
     // Draw edges
     ctx.save()
     project.edges.forEach(edge => {
       const fromNode = project.nodes.find(n => n.id === edge.from)
       const toNode = project.nodes.find(n => n.id === edge.to)
       if (!fromNode || !toNode) return
-      const isDim = selectedNodeId
+      const isDim = pathTracerNodeId
+        ? !tracedEdges.has(edge.id)
+        : selectedNodeId
         ? dimmed.has(edge.from) || dimmed.has(edge.to)
         : false
-      drawEdge(ctx, fromNode, toNode, edge, t, isDim, t.scale > 0.35)
+      const isTraced = tracedEdges.has(edge.id)
+      drawEdge(ctx, fromNode, toNode, edge, t, isDim, t.scale > 0.35, isTraced)
     })
 
     // Link drag line
@@ -194,10 +217,14 @@ export default function GraphCanvas() {
     // Draw nodes
     project.nodes.forEach(node => {
       const isSelected = node.id === selectedNodeId
-      const isDim = dimmed.has(node.id)
+      const isDim = pathTracerNodeId
+        ? !tracedNodes.has(node.id)
+        : dimmed.has(node.id)
       const isSearchDim = searchQuery ? !searchMatches.has(node.id) : false
-      const alpha = isDim || isSearchDim ? 0.2 : 1
-      drawNode(ctx, node, t, isSelected, alpha, linkModeActive)
+      const isTraced = tracedNodes.has(node.id)
+      const isTracerSource = node.id === pathTracerNodeId
+      const alpha = isDim || isSearchDim ? 0.15 : 1
+      drawNode(ctx, node, t, isSelected, alpha, linkModeActive, isTraced, isTracerSource)
     })
     ctx.restore()
   }
@@ -221,7 +248,8 @@ export default function GraphCanvas() {
     ctx: CanvasRenderingContext2D,
     from: StoryNode, to: StoryNode,
     edge: Edge, t: CanvasTransform,
-    dimmed: boolean, showLabel: boolean
+    dimmed: boolean, showLabel: boolean,
+    isTraced = false
   ) {
     const [fx, fy] = worldToScreen(from.x, from.y, t)
     const [tx, ty] = worldToScreen(to.x, to.y, t)
@@ -245,9 +273,9 @@ export default function GraphCanvas() {
     const cpY = midY + perpY
 
     ctx.save()
-    ctx.globalAlpha = dimmed ? 0.15 : 0.7
-    ctx.strokeStyle = edge.isDeath ? '#d04040' : '#3a4a68'
-    ctx.lineWidth = 1.5
+    ctx.globalAlpha = dimmed ? 0.1 : isTraced ? 1 : 0.7
+    ctx.strokeStyle = isTraced ? '#40c0a0' : edge.isDeath ? '#d04040' : '#3a4a68'
+    ctx.lineWidth = isTraced ? 2.5 : 1.5
     if (edge.isDeath) ctx.setLineDash([5, 4])
 
     ctx.beginPath()
@@ -259,7 +287,7 @@ export default function GraphCanvas() {
     // Arrowhead
     const angle = Math.atan2(endY - cpY, endX - cpX)
     const arrowSize = 8 * t.scale
-    ctx.fillStyle = edge.isDeath ? '#d04040' : '#3a4a68'
+    ctx.fillStyle = isTraced ? '#40c0a0' : edge.isDeath ? '#d04040' : '#3a4a68'
     ctx.beginPath()
     ctx.moveTo(endX, endY)
     ctx.lineTo(
@@ -290,7 +318,9 @@ export default function GraphCanvas() {
     ctx: CanvasRenderingContext2D,
     node: StoryNode, t: CanvasTransform,
     isSelected: boolean, alpha: number,
-    linkMode: boolean
+    linkMode: boolean,
+    isTraced = false,
+    isTracerSource = false
   ) {
     const [sx, sy] = worldToScreen(node.x, node.y, t)
     const r = NODE_RADIUS * t.scale
@@ -298,6 +328,18 @@ export default function GraphCanvas() {
 
     ctx.save()
     ctx.globalAlpha = alpha
+
+    // Teal tracer ring (outer, drawn before fill)
+    if (isTraced || isTracerSource) {
+      ctx.beginPath()
+      ctx.arc(sx, sy, r + 5, 0, Math.PI * 2)
+      ctx.strokeStyle = isTracerSource ? '#80e0c0' : '#40c0a0'
+      ctx.lineWidth = isTracerSource ? 3 : 2
+      ctx.shadowColor = '#40c0a0'
+      ctx.shadowBlur = 10
+      ctx.stroke()
+      ctx.shadowBlur = 0
+    }
 
     // Shadow for selected
     if (isSelected) {
@@ -312,8 +354,8 @@ export default function GraphCanvas() {
     ctx.fill()
 
     // Stroke
-    ctx.strokeStyle = colors.stroke
-    ctx.lineWidth = isSelected ? 3 : 2
+    ctx.strokeStyle = isTraced ? '#40c0a0' : colors.stroke
+    ctx.lineWidth = isSelected ? 3 : isTraced ? 2.5 : 2
     ctx.stroke()
     ctx.shadowBlur = 0
 
@@ -435,6 +477,31 @@ export default function GraphCanvas() {
     const sx = e.nativeEvent.offsetX
     const sy = e.nativeEvent.offsetY
 
+    // Shift+click: path tracer
+    if (e.shiftKey) {
+      const node = getNodeAtScreen(sx, sy)
+      if (node) {
+        if (pathTracerNodeId === node.id) {
+          setPathTracerNodeId(null)
+        } else {
+          setPathTracerNodeId(node.id)
+          // Show toast if no paths exist
+          const isEnd = node.type === 'ending' || node.type === 'death'
+          const traced = isEnd
+            ? traceBackward(node.id, project.nodes, project.edges)
+            : traceForward(node.id, project.nodes, project.edges)
+          if (traced.size <= 1) {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+            setPathTracerToast(isEnd ? 'No ancestors found' : 'No reachable nodes found')
+            toastTimerRef.current = setTimeout(() => setPathTracerToast(null), 2500)
+          }
+        }
+      } else {
+        setPathTracerNodeId(null)
+      }
+      return
+    }
+
     // Check link handle first
     const handleNode = getLinkHandleAtScreen(sx, sy)
     if (handleNode && linkModeActive) {
@@ -468,7 +535,7 @@ export default function GraphCanvas() {
     // Pan
     const t = transformRef.current
     panRef.current = { startX: sx, startY: sy, origTX: t.x, origTY: t.y }
-  }, [linkModeActive, project.nodes, snapshotForUndo])
+  }, [linkModeActive, project.nodes, project.edges, snapshotForUndo, pathTracerNodeId])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const sx = e.nativeEvent.offsetX
@@ -696,6 +763,27 @@ export default function GraphCanvas() {
           onConfirm={confirmEdge}
           onCancel={() => setPopover(null)}
         />
+      )}
+      {pathTracerNodeId && (
+        <div style={{
+          position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
+          background: '#1a2032', border: '1px solid #40c0a0',
+          borderRadius: 20, padding: '5px 14px', fontSize: 12,
+          color: '#40c0a0', pointerEvents: 'none', whiteSpace: 'nowrap',
+        }}>
+          Path trace: <strong>{pathTracerNodeId}</strong>
+          {' '}— Shift+click same node or background to clear
+        </div>
+      )}
+      {pathTracerToast && (
+        <div style={{
+          position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#2a0808', border: '1px solid #d04040',
+          borderRadius: 20, padding: '5px 14px', fontSize: 12,
+          color: '#d04040', pointerEvents: 'none',
+        }}>
+          {pathTracerToast}
+        </div>
       )}
     </div>
   )

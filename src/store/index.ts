@@ -13,8 +13,22 @@ import type {
   Branch,
   DialogueLine,
   VariableEffect,
-  NodeType
+  NodeType,
+  Playthrough,
+  WriterRoomSection
 } from '../types'
+
+// ── Default Writer's Room sections ────────────────────────────────────────
+
+function makeDefaultWriterRoom(): WriterRoomSection[] {
+  return [
+    { id: uuidv4(), title: 'World', content: '', order: 0 },
+    { id: uuidv4(), title: 'Characters', content: '', order: 1 },
+    { id: uuidv4(), title: 'Timeline', content: '', order: 2 },
+    { id: uuidv4(), title: 'Rules', content: '', order: 3 },
+    { id: uuidv4(), title: 'Research', content: '', order: 4 },
+  ]
+}
 
 const DEFAULT_PROJECT: Project = {
   id: uuidv4(),
@@ -25,7 +39,9 @@ const DEFAULT_PROJECT: Project = {
   variables: [],
   assets: [],
   projectPath: null,
-  lastSaved: null
+  lastSaved: null,
+  playthroughs: [],
+  writerRoom: makeDefaultWriterRoom()
 }
 
 interface AppState {
@@ -35,15 +51,23 @@ interface AppState {
 
   // App mode
   mode: AppMode
-  sceneNodeId: string | null  // which node is open in scene mode
+  sceneNodeId: string | null
   playFromNodeId: string | null
 
   // Graph UI state
   selectedNodeId: string | null
   canvasTransform: CanvasTransform
   linkModeActive: boolean
-  panelNavHistory: string[]  // session navigation history of node IDs
+  panelNavHistory: string[]
   searchQuery: string
+
+  // Panel visibility (UI-only)
+  timelineVisible: boolean
+  findBarOpen: boolean
+  conflictsPanelOpen: boolean
+  simulatorOpen: boolean
+  statisticsOpen: boolean
+  writersRoomOpen: boolean
 
   // Undo/redo stacks
   undoStack: UndoAction[]
@@ -59,6 +83,12 @@ interface AppState {
   setCanvasTransform: (t: CanvasTransform) => void
   setLinkMode: (active: boolean) => void
   setSearchQuery: (q: string) => void
+  setTimelineVisible: (v: boolean) => void
+  setFindBarOpen: (v: boolean) => void
+  setConflictsPanelOpen: (v: boolean) => void
+  setSimulatorOpen: (v: boolean) => void
+  setStatisticsOpen: (v: boolean) => void
+  setWritersRoomOpen: (v: boolean) => void
 
   // ── Project operations ────────────────────────────────────────────────
 
@@ -111,6 +141,19 @@ interface AppState {
 
   updateVariableEffects: (nodeId: string, effects: VariableEffect[]) => void
 
+  // ── Playthrough operations ────────────────────────────────────────────
+
+  addPlaythrough: (pt: Playthrough) => void
+  deletePlaythrough: (id: string) => void
+  renamePlaythrough: (id: string, name: string) => void
+
+  // ── Writer's Room operations ──────────────────────────────────────────
+
+  updateWriterRoomSection: (id: string, changes: Partial<WriterRoomSection>) => void
+  addWriterRoomSection: (section: WriterRoomSection) => void
+  deleteWriterRoomSection: (id: string) => void
+  reorderWriterRoomSections: (sections: WriterRoomSection[]) => void
+
   // ── Undo/Redo ─────────────────────────────────────────────────────────
 
   undo: () => void
@@ -137,7 +180,6 @@ function getAutoId(nodes: StoryNode[], baseId?: string): string {
     const next = nums.length ? Math.max(...nums) + 1 : 1
     return `${baseId}-${next}`
   }
-  // Generate sequential ID from existing IDs
   const existing = nodes.map(n => n.id).filter(id => /^S\d+$/.test(id)).map(id => parseInt(id.slice(1)))
   const next = existing.length ? Math.max(...existing) + 1 : 1
   return `S${next}`
@@ -154,6 +196,12 @@ export const useStore = create<AppState>((set, get) => ({
   linkModeActive: false,
   panelNavHistory: [],
   searchQuery: '',
+  timelineVisible: false,
+  findBarOpen: false,
+  conflictsPanelOpen: false,
+  simulatorOpen: false,
+  statisticsOpen: false,
+  writersRoomOpen: false,
   undoStack: [],
   redoStack: [],
   autoSaveTimer: null,
@@ -165,15 +213,24 @@ export const useStore = create<AppState>((set, get) => ({
   })),
 
   setSelectedNode: (id) => set({ selectedNodeId: id }),
-
   setCanvasTransform: (t) => set({ canvasTransform: t }),
-
   setLinkMode: (active) => set({ linkModeActive: active }),
-
   setSearchQuery: (q) => set({ searchQuery: q }),
+  setTimelineVisible: (v) => set({ timelineVisible: v }),
+  setFindBarOpen: (v) => set({ findBarOpen: v }),
+  setConflictsPanelOpen: (v) => set({ conflictsPanelOpen: v }),
+  setSimulatorOpen: (v) => set({ simulatorOpen: v }),
+  setStatisticsOpen: (v) => set({ statisticsOpen: v }),
+  setWritersRoomOpen: (v) => set({ writersRoomOpen: v }),
 
   loadProject: (p) => set({
-    project: p,
+    project: {
+      ...p,
+      playthroughs: p.playthroughs ?? [],
+      writerRoom: (p.writerRoom && p.writerRoom.length > 0)
+        ? p.writerRoom
+        : makeDefaultWriterRoom()
+    },
     isDirty: false,
     selectedNodeId: null,
     mode: 'graph',
@@ -463,6 +520,84 @@ export const useStore = create<AppState>((set, get) => ({
     scheduleAutoSave(get)
   },
 
+  // ── Playthrough ops ────────────────────────────────────────────────────
+
+  addPlaythrough: (pt) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        playthroughs: [...s.project.playthroughs, pt]
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  deletePlaythrough: (id) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        playthroughs: s.project.playthroughs.filter(p => p.id !== id)
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  renamePlaythrough: (id, name) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        playthroughs: s.project.playthroughs.map(p => p.id === id ? { ...p, name } : p)
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  // ── Writer's Room ops ──────────────────────────────────────────────────
+
+  updateWriterRoomSection: (id, changes) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        writerRoom: s.project.writerRoom.map(sec => sec.id === id ? { ...sec, ...changes } : sec)
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  addWriterRoomSection: (section) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        writerRoom: [...s.project.writerRoom, section]
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  deleteWriterRoomSection: (id) => {
+    set(s => ({
+      project: {
+        ...s.project,
+        writerRoom: s.project.writerRoom.filter(sec => sec.id !== id)
+      },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
+  reorderWriterRoomSections: (sections) => {
+    set(s => ({
+      project: { ...s.project, writerRoom: sections },
+      isDirty: true
+    }))
+    scheduleAutoSave(get)
+  },
+
   // ── Undo/Redo ──────────────────────────────────────────────────────────
 
   snapshotForUndo: (type) => {
@@ -564,6 +699,8 @@ function buildExportData(project: Project) {
     edges: project.edges,
     characters: project.characters,
     variables: project.variables,
-    assets: project.assets
+    assets: project.assets,
+    playthroughs: project.playthroughs,
+    writerRoom: project.writerRoom
   }
 }

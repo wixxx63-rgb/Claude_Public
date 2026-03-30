@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: (path: string, content: string) => ipcRenderer.invoke('fs:writeFile', path, content),
   copyAsset: (src: string, destDir: string) => ipcRenderer.invoke('fs:copyAsset', src, destDir),
   exists: (path: string) => ipcRenderer.invoke('fs:exists', path),
-  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
+  readFileBase64: (path: string) => ipcRenderer.invoke('fs:readFileBase64', path),
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  showItemInFolder: (path: string) => ipcRenderer.invoke('shell:showItemInFolder', path)
 })
