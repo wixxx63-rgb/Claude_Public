@@ -40,6 +40,11 @@ export default function DetailPanel() {
   const [showDepsMap, setShowDepsMap] = useState(false)
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
+  // Cancel pending debounced updates when unmounting or switching nodes
+  useEffect(() => {
+    return () => { Object.values(debounceRef.current).forEach(clearTimeout) }
+  }, [selectedNodeId])
+
   const nodeOrUndef = project.nodes.find(n => n.id === selectedNodeId)
 
   if (!nodeOrUndef || mode !== 'graph') return null
@@ -433,7 +438,7 @@ export default function DetailPanel() {
           onClick={() => setShowAddChoices(true)}
         >+ Add choices</button>
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
           <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12 }}
             onClick={() => setMode('scene', node.id)}>Edit Scene</button>
           <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12 }}
@@ -441,10 +446,18 @@ export default function DetailPanel() {
           <button className="btn btn-danger" style={{ flex: 1, fontSize: 12 }}
             onClick={() => setShowDeleteConfirm(true)}>Delete</button>
         </div>
-        <button className="btn btn-ghost" style={{ width: '100%', fontSize: 12, marginTop: 6, color: '#9aa5bb' }}
-          onClick={() => setShowDepsMap(true)}>
-          Dependencies
-        </button>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12, color: '#40a060' }}
+            onClick={() => setMode('play', node.id)}
+            title="Play the story starting from this node">
+            ▶ Play from here
+          </button>
+          <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12, color: '#9aa5bb' }}
+            onClick={() => setShowDepsMap(true)}>
+            Dependencies
+          </button>
+        </div>
       </div>
 
       {/* Add choices form */}
@@ -454,7 +467,7 @@ export default function DetailPanel() {
 
       {/* Dependency Map */}
       {showDepsMap && (
-        <DependencyMap node={node} onClose={() => setShowDepsMap(false)} />
+        <DependencyMap nodeId={node.id} onClose={() => setShowDepsMap(false)} />
       )}
 
       {/* Delete confirm */}

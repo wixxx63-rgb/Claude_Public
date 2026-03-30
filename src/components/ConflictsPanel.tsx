@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { useStore } from '../store'
 import { detectConflicts } from '../utils/conflictDetector'
 import type { ConflictIssue, ConflictIssueType } from '../types'
@@ -37,6 +37,11 @@ export default function ConflictsPanel({ onClose }: Props) {
   }))
 
   const [issues, setIssues] = React.useState<ConflictIssue[]>(() => detectConflicts(project))
+
+  // Re-scan whenever nodes/edges/variables change
+  useEffect(() => {
+    setIssues(detectConflicts(project))
+  }, [project.nodes, project.edges, project.variables])
 
   const rescan = useCallback(() => {
     setIssues(detectConflicts(project))

@@ -50,6 +50,7 @@ export default function Toolbar() {
   const [showHtmlExport, setShowHtmlExport] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [searchVal, setSearchVal] = useState('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Conflict badge count (only run when panel is closed to avoid double computation)
   const conflictErrorCount = useMemo(() => {
@@ -59,27 +60,37 @@ export default function Toolbar() {
     return 0
   }, [project.nodes, project.edges, project.variables, mode, conflictsPanelOpen])
 
-  // Update save indicator
+  // Update save indicator (flash "Saving…" briefly during auto-save)
+  const [isSaving, setIsSaving] = useState(false)
   useEffect(() => {
     if (!isDirty && project.lastSaved) {
-      const mins = Math.round((Date.now() - project.lastSaved) / 60000)
-      setSaveMsg(mins < 1 ? 'Saved · Just now' : `Saved · ${mins}m ago`)
+      setIsSaving(true)
+      const t = setTimeout(() => {
+        setIsSaving(false)
+        const mins = Math.round((Date.now() - project.lastSaved!) / 60000)
+        setSaveMsg(mins < 1 ? 'Saved · Just now' : `Saved · ${mins}m ago`)
+      }, 400)
+      return () => clearTimeout(t)
     } else if (isDirty) {
+      setIsSaving(false)
       setSaveMsg('● Unsaved changes')
     }
   }, [isDirty, project.lastSaved])
 
-  // Undo/redo + find keyboard shortcuts
+  // Stable ref so the keyboard handler never needs to reinstall when project changes
+  const handleSaveRef = useRef<() => void>(() => {})
+
+  // Undo/redo + find keyboard shortcuts — deps are stable Zustand actions only
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
       if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo() }
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveRef.current() }
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); setFindBarOpen(true) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, project])
+  }, [undo, redo])
 
   async function handleSave() {
     let path = project.projectPath
@@ -93,7 +104,10 @@ export default function Toolbar() {
     const data = exportJSON(project)
     const ok = await window.electronAPI?.writeFile(path, data)
     if (ok) markSaved(path)
+    else alert('Save failed — could not write file.')
   }
+  // Keep ref current every render so keyboard shortcut always uses latest project state
+  handleSaveRef.current = handleSave
 
   async function handleExportJSON() {
     const path = await window.electronAPI?.saveFile(
@@ -126,10 +140,13 @@ export default function Toolbar() {
       `${project.name}-grok-scenes.html`
     )
     if (!path) return
-    const html = buildGrokHTML(project)
-    const ok = await window.electronAPI?.writeFile(path, html)
-    if (ok) {
-      window.electronAPI?.showItemInFolder(path)
+    try {
+      const html = buildGrokHTML(project)
+      const ok = await window.electronAPI?.writeFile(path, html)
+      if (ok) window.electronAPI?.showItemInFolder(path)
+      else alert('Grok export failed — could not write file.')
+    } catch (err: any) {
+      alert(`Grok export failed: ${err?.message ?? String(err)}`)
     }
   }
 
@@ -339,10 +356,15 @@ export default function Toolbar() {
               title="Find & Replace (Ctrl+F)"
             >Find</button>
 
-            {/* Search */}
+            {/* Search — debounced so canvas doesn't redraw on every keystroke */}
             <input
               value={searchVal}
-              onChange={e => { setSearchVal(e.target.value); setSearchQuery(e.target.value) }}
+              onChange={e => {
+                const val = e.target.value
+                setSearchVal(val)
+                if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+                searchDebounceRef.current = setTimeout(() => setSearchQuery(val), 150)
+              }}
               placeholder="Search…"
               style={{ width: 120, fontSize: 12, padding: '4px 10px' }}
             />
@@ -381,10 +403,13 @@ export default function Toolbar() {
 
           <span style={{
             fontSize: 11,
-            color: isDirty ? '#d4a040' : '#5e6e8a',
+            color: isSaving ? '#4a80d4' : isDirty ? '#d4a040' : '#5e6e8a',
             minWidth: 120,
-            textAlign: 'right'
-          }}>{saveMsg || (isDirty ? '● Unsaved' : 'No changes')}</span>
+            textAlign: 'right',
+            transition: 'color 0.2s',
+          }}>
+            {isSaving ? '↑ Saving…' : saveMsg || (isDirty ? '● Unsaved' : 'No changes')}
+          </span>
 
           <button
             className="btn btn-primary"

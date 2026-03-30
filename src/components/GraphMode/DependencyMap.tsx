@@ -13,6 +13,8 @@ export default function DependencyMap({ nodeId, onClose }: Props) {
     navigateTo: s.navigateTo
   }))
 
+  const [expandUpstream, setExpandUpstream] = useState(true)
+  const [expandDownstream, setExpandDownstream] = useState(true)
   const [expandAncestors, setExpandAncestors] = useState(false)
   const [expandDescendants, setExpandDescendants] = useState(false)
 
@@ -145,18 +147,18 @@ export default function DependencyMap({ nodeId, onClose }: Props) {
             <SectionHeader
               title="Variable Upstream"
               count={upstreamNodes.length}
-              expanded={true}
-              onToggle={() => {}}
+              expanded={expandUpstream}
+              onToggle={() => setExpandUpstream(v => !v)}
             />
             {!hasVariables ? (
               <p style={{ fontSize: 12, color: '#5e6e8a' }}>No variables defined. Add variables in the Variable Manager to enable dependency tracking.</p>
-            ) : upstreamNodes.length === 0 ? (
+            ) : expandUpstream && (upstreamNodes.length === 0 ? (
               <p style={{ fontSize: 12, color: '#5e6e8a' }}>No nodes set variables that this node reads.</p>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {upstreamNodes.map(n => <NodeChip key={n.id} id={n.id} />)}
               </div>
-            )}
+            ))}
           </div>
 
           {/* Variable Downstream */}
@@ -164,18 +166,18 @@ export default function DependencyMap({ nodeId, onClose }: Props) {
             <SectionHeader
               title="Variable Downstream"
               count={downstreamNodes.length}
-              expanded={true}
-              onToggle={() => {}}
+              expanded={expandDownstream}
+              onToggle={() => setExpandDownstream(v => !v)}
             />
             {!hasVariables ? (
               <p style={{ fontSize: 12, color: '#5e6e8a' }}>No variables defined.</p>
-            ) : downstreamNodes.length === 0 ? (
+            ) : expandDownstream && (downstreamNodes.length === 0 ? (
               <p style={{ fontSize: 12, color: '#5e6e8a' }}>No nodes read variables that this node sets.</p>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {downstreamNodes.map(n => <NodeChip key={n.id} id={n.id} />)}
               </div>
-            )}
+            ))}
           </div>
 
           {/* Structural Ancestors */}

@@ -34,7 +34,17 @@ export default function App() {
   const setWritersRoomOpen = useStore(s => s.setWritersRoomOpen)
   const setSimulatorOpen = useStore(s => s.setSimulatorOpen)
 
-  const [nodeListCollapsed, setNodeListCollapsed] = useState(false)
+  const [nodeListCollapsed, setNodeListCollapsed] = useState(() => {
+    try { return localStorage.getItem('nf:nodeListCollapsed') === '1' } catch { return false }
+  })
+
+  function toggleNodeList() {
+    setNodeListCollapsed(v => {
+      const next = !v
+      try { localStorage.setItem('nf:nodeListCollapsed', next ? '1' : '0') } catch {}
+      return next
+    })
+  }
 
   return (
     <div style={{
@@ -58,7 +68,7 @@ export default function App() {
         {mode === 'graph' && !timelineVisible && !simulatorOpen && (
           <NodeList
             collapsed={nodeListCollapsed}
-            onToggle={() => setNodeListCollapsed(v => !v)}
+            onToggle={toggleNodeList}
           />
         )}
 

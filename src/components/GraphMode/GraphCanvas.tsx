@@ -50,6 +50,7 @@ export default function GraphCanvas() {
   const linkDragRef = useRef<LinkDragState | null>(null)
   const panRef = useRef<{ startX: number; startY: number; origTX: number; origTY: number } | null>(null)
   const [popover, setPopover] = useState<PopoverState | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
   const autoAnimRef = useRef<{ targets: { id: string; x: number; y: number }[]; start: number } | null>(null)
   // Always points to the latest draw() function so event handlers can call it
   const drawFnRef = useRef<() => void>(() => {})
@@ -69,6 +70,8 @@ export default function GraphCanvas() {
   const addEdge = useStore(s => s.addEdge)
   const createNodeAt = useStore(s => s.createNodeAt)
   const setMode = useStore(s => s.setMode)
+  const deleteNode = useStore(s => s.deleteNode)
+  const duplicateNode = useStore(s => s.duplicateNode)
 
   // Path tracer state (local — not needed in store for this use)
   const [pathTracerNodeId, setPathTracerNodeId] = useState<string | null>(null)
@@ -474,6 +477,7 @@ export default function GraphCanvas() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
+    setContextMenu(null)
     const sx = e.nativeEvent.offsetX
     const sy = e.nativeEvent.offsetY
 
@@ -664,9 +668,13 @@ export default function GraphCanvas() {
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    // Right-click on node: could show "Play from here"
-    // For now just prevent default
-  }, [])
+    const node = getNodeAtScreen(e.nativeEvent.offsetX, e.nativeEvent.offsetY)
+    if (node) {
+      setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id })
+    } else {
+      setContextMenu(null)
+    }
+  }, [project.nodes])
 
   // ── Edge creation from popover ────────────────────────────────────────
 
@@ -763,6 +771,36 @@ export default function GraphCanvas() {
           onConfirm={confirmEdge}
           onCancel={() => setPopover(null)}
         />
+      )}
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed', left: contextMenu.x, top: contextMenu.y,
+            background: '#1a2032', border: '1px solid #3a4a68',
+            borderRadius: 6, padding: '4px 0', zIndex: 100,
+            minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+          onMouseLeave={() => setContextMenu(null)}
+        >
+          {[
+            { label: '▶ Play from here', color: '#40a060', action: () => { setMode('scene', contextMenu.nodeId); setMode('play', contextMenu.nodeId) } },
+            { label: '✎ Edit Scene', color: '#e8ecf4', action: () => setMode('scene', contextMenu.nodeId) },
+            { label: '⧉ Duplicate', color: '#e8ecf4', action: () => duplicateNode(contextMenu.nodeId) },
+            { label: '✕ Delete', color: '#d04040', action: () => { if (confirm(`Delete ${contextMenu.nodeId}?`)) deleteNode(contextMenu.nodeId) } },
+          ].map(item => (
+            <button
+              key={item.label}
+              onClick={() => { item.action(); setContextMenu(null) }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none', padding: '7px 14px',
+                fontSize: 13, color: item.color, cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#2a3448')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >{item.label}</button>
+          ))}
+        </div>
       )}
       {pathTracerNodeId && (
         <div style={{

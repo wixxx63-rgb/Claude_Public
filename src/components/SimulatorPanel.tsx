@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useStore } from '../store'
-import type { Playthrough, PlaythroughStep, StoryNode, VariableState } from '../types'
+import type { Playthrough, PlaythroughStep, StoryNode, Variable, VariableState } from '../types'
 import { buildDefaultState, applyEffects, applyBranchEffects, evaluateCondition } from '../utils/variables'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ interface ActiveSimProps {
   onSave: (name: string) => void
   onReset: () => void
   nodes: StoryNode[]
-  variables: { id: string; name: string }[]
+  variables: Variable[]
 }
 
 function ActiveSim({ sim, onAdvance, onStop, onSave, onReset, nodes, variables }: ActiveSimProps) {
@@ -50,7 +50,7 @@ function ActiveSim({ sim, onAdvance, onStop, onSave, onReset, nodes, variables }
   const availableBranches = useMemo(() => {
     if (!node) return []
     return node.branches.filter(b =>
-      evaluateCondition(b.condition, sim.varState, variables as any)
+      evaluateCondition(b.condition, sim.varState, variables)
     )
   }, [node, sim.varState, variables])
 
@@ -296,7 +296,7 @@ interface SavedRunsProps {
   playthroughs: Playthrough[]
   onDelete: (id: string) => void
   navigateTo: (id: string) => void
-  variables: { id: string; name: string }[]
+  variables: Variable[]
 }
 
 function SavedRuns({ playthroughs, onDelete, navigateTo, variables }: SavedRunsProps) {

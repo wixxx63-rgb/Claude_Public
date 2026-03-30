@@ -130,7 +130,7 @@ function applyEffects(state,effects){
 function applyBranchEffects(state,effects,variables){
   const s={...state};
   effects.forEach(eff=>{
-    const am=eff.match(/^(\\w+)\\+(\\d+)$/),sm=eff.match(/^(\\w+)-(\\d+)$/),em=eff.match(/^(\\w+)[=:](.+)$/);
+    eff=eff.trim();const am=eff.match(/^(\\w+)\\s*\\+\\s*(\\d+)$/),sm=eff.match(/^(\\w+)\\s*-\\s*(\\d+)$/),em=eff.match(/^(\\w+)\\s*[=:]\\s*(.+)$/);
     const findId=name=>{const v=variables.find(v=>v.name===name);return v?v.id:null};
     if(am){const id=findId(am[1]);if(id)s[id]=(Number(s[id])||0)+Number(am[2]);}
     else if(sm){const id=findId(sm[1]);if(id)s[id]=(Number(s[id])||0)-Number(sm[2]);}
@@ -140,8 +140,9 @@ function applyBranchEffects(state,effects,variables){
 }
 function evalCond(cond,state,variables){
   if(!cond)return true;
+  cond=cond.trim();
   const byName={};variables.forEach(v=>{byName[v.name]=state[v.id]??v.defaultValue});
-  const pv=s=>{if(s==='true')return true;if(s==='false')return false;if(!isNaN(Number(s)))return Number(s);return s.trim()};
+  const pv=s=>{s=String(s).trim();if(s==='true')return true;if(s==='false')return false;if(!isNaN(Number(s)))return Number(s);return s};
   let m;
   if(m=cond.match(/^(\\w+)\\s*=\\s*(.+)$/))return byName[m[1]]==pv(m[2]);
   if(m=cond.match(/^(\\w+)\\s*>\\s*(.+)$/))return Number(byName[m[1]])>Number(m[2]);

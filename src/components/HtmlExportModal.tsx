@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { useStore } from '../store'
 import { generateHtmlExport } from '../utils/htmlExport'
 
@@ -10,6 +10,12 @@ type ExportState = 'idle' | 'running' | 'done' | 'error'
 
 export default function HtmlExportModal({ onClose }: Props) {
   const { project } = useStore(s => ({ project: s.project }))
+
+  // Assets that have a path set but the path looks potentially missing (empty or blank)
+  const missingAssets = useMemo(() =>
+    project.assets.filter(a => !a.path || !a.path.trim()),
+    [project.assets]
+  )
 
   const [state, setState] = useState<ExportState>('idle')
   const [progress, setProgress] = useState(0)
@@ -57,7 +63,7 @@ export default function HtmlExportModal({ onClose }: Props) {
   }
 
   return (
-    <div className="overlay" onClick={state === 'running' ? undefined : onClose}>
+    <div className="overlay" onClick={state === 'running' ? e => e.stopPropagation() : onClose}>
       <div
         className="modal"
         style={{ width: 480 }}
@@ -89,9 +95,23 @@ export default function HtmlExportModal({ onClose }: Props) {
               <div style={{ marginBottom: 4 }}>
                 <span style={{ color: '#e8ecf4' }}>Assets to embed:</span> {project.assets.filter(a => a.path).length}
               </div>
-              <div>
+              <div style={{ marginBottom: missingAssets.length > 0 ? 6 : 0 }}>
                 <span style={{ color: '#e8ecf4' }}>Characters:</span> {project.characters.length}
               </div>
+              {missingAssets.length > 0 && (
+                <div style={{ marginTop: 6, padding: '6px 8px', background: '#2a1010', borderRadius: 4, borderLeft: '3px solid #d04040' }}>
+                  <div style={{ color: '#d04040', fontWeight: 600, marginBottom: 3 }}>
+                    ⚠ {missingAssets.length} asset{missingAssets.length !== 1 ? 's' : ''} may be missing:
+                  </div>
+                  {missingAssets.slice(0, 3).map(a => (
+                    <div key={a.id} style={{ color: '#d08080', fontSize: 11, marginTop: 1 }}>• {a.name}</div>
+                  ))}
+                  {missingAssets.length > 3 && (
+                    <div style={{ color: '#d08080', fontSize: 11 }}>…and {missingAssets.length - 3} more</div>
+                  )}
+                  <div style={{ color: '#9aa5bb', fontSize: 11, marginTop: 4 }}>These will be skipped during export.</div>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: 13 }}>Cancel</button>
