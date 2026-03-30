@@ -238,6 +238,7 @@ export const useStore = create<AppState>((set, get) => ({
     panelNavHistory: [],
     undoStack: [],
     redoStack: [],
+    linkModeActive: false,
     timelineVisible: false,
     simulatorOpen: false,
     conflictsPanelOpen: false,

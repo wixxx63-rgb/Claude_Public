@@ -191,7 +191,7 @@ export default function HtmlExportModal({ onClose }: Props) {
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: 13 }}>Close</button>
-              <button className="btn btn-primary" onClick={() => setState('idle')} style={{ fontSize: 13, padding: '6px 14px' }}>
+              <button className="btn btn-primary" onClick={() => { setState('idle'); setErrorMsg(null) }} style={{ fontSize: 13, padding: '6px 14px' }}>
                 Try Again
               </button>
             </div>
