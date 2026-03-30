@@ -237,7 +237,14 @@ export const useStore = create<AppState>((set, get) => ({
     sceneNodeId: null,
     panelNavHistory: [],
     undoStack: [],
-    redoStack: []
+    redoStack: [],
+    timelineVisible: false,
+    simulatorOpen: false,
+    conflictsPanelOpen: false,
+    statisticsOpen: false,
+    writersRoomOpen: false,
+    findBarOpen: false,
+    searchQuery: '',
   }),
 
   setProjectName: (name) => {

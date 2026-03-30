@@ -7,6 +7,7 @@ import CharacterManager from './CharacterManager'
 import VariableManager from './VariableManager'
 import HtmlExportModal from './HtmlExportModal'
 import { detectConflicts } from '../utils/conflictDetector'
+import { buildGrokHTML } from '../utils/grokExport'
 
 export default function Toolbar() {
   const {
@@ -50,13 +51,13 @@ export default function Toolbar() {
   const [saveMsg, setSaveMsg] = useState('')
   const [searchVal, setSearchVal] = useState('')
 
-  // Conflict badge count
+  // Conflict badge count (only run when panel is closed to avoid double computation)
   const conflictErrorCount = useMemo(() => {
     if (!conflictsPanelOpen && mode === 'graph') {
       return detectConflicts(project).filter(i => i.severity === 'error').length
     }
     return 0
-  }, [project.nodes, project.edges, project.variables, mode])
+  }, [project.nodes, project.edges, project.variables, mode, conflictsPanelOpen])
 
   // Update save indicator
   useEffect(() => {
@@ -112,6 +113,24 @@ export default function Toolbar() {
     if (!path) return
     const ok = await window.electronAPI?.writeFile(path, exportXML(project))
     if (ok) alert('Exported successfully.')
+  }
+
+  async function handleGrokExport() {
+    const grokCount = project.nodes.filter(n => n.type === 'grok' || n.grokHandoff.trim()).length
+    if (grokCount === 0) {
+      alert('No grok-type nodes or grok handoff content found in this project.')
+      return
+    }
+    const path = await window.electronAPI?.saveFile(
+      [{ name: 'HTML File', extensions: ['html'] }],
+      `${project.name}-grok-scenes.html`
+    )
+    if (!path) return
+    const html = buildGrokHTML(project)
+    const ok = await window.electronAPI?.writeFile(path, html)
+    if (ok) {
+      window.electronAPI?.showItemInFolder(path)
+    }
   }
 
   async function handleImport() {
@@ -301,6 +320,11 @@ export default function Toolbar() {
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
               onClick={() => setShowHtmlExport(true)}
               title="Export Playable HTML">HTML Export</button>
+
+            {/* Grok Export */}
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', color: '#9060d0' }}
+              onClick={handleGrokExport}
+              title="Export Grok scenes as HTML">Grok Export</button>
 
             {/* Find */}
             <button
