@@ -66,13 +66,13 @@ export default function CharacterManager({ onClose }: Props) {
 
   return (
     <div className="overlay">
-      <div className="modal" style={{ minWidth: 600, maxWidth: 700, maxHeight: '80vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="modal" style={{ minWidth: 600, maxWidth: 700, height: '80vh', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #2a3448', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700 }}>Characters</h2>
           <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {/* Character list */}
           <div style={{ width: 200, borderRight: '1px solid #2a3448', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>

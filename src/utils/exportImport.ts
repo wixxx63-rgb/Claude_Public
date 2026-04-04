@@ -41,7 +41,7 @@ export function importJSON(json: string): Partial<Project> | null {
     if (!data.meta || data.meta.app !== 'Narrative Flow') return null
     return {
       name: data.meta.projectName,
-      nodes: data.nodes ?? [],
+      nodes: (data.nodes ?? []).map(n => ({ isPov: false, povCharacter: null, ...n })),
       edges: data.edges ?? [],
       characters: data.characters ?? [],
       variables: data.variables ?? [],
@@ -74,7 +74,7 @@ export function importXML(xml: string): Partial<Project> | null {
     if (!data?.meta || data.meta.app !== 'Narrative Flow') return null
     return {
       name: data.meta.projectName,
-      nodes: data.nodes ?? [],
+      nodes: (data.nodes ?? []).map((n: any) => ({ isPov: false, povCharacter: null, ...n })),
       edges: data.edges ?? [],
       characters: data.characters ?? [],
       variables: data.variables ?? [],

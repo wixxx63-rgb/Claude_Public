@@ -13,6 +13,7 @@ export default function Toolbar() {
   const {
     mode, project, isDirty, linkModeActive, sceneNodeId, undoStack, redoStack,
     timelineVisible, simulatorOpen, conflictsPanelOpen, statisticsOpen, writersRoomOpen, findBarOpen,
+    povFilter,
   } = useStore(s => ({
     mode: s.mode,
     project: s.project,
@@ -27,6 +28,7 @@ export default function Toolbar() {
     statisticsOpen: s.statisticsOpen,
     writersRoomOpen: s.writersRoomOpen,
     findBarOpen: s.findBarOpen,
+    povFilter: s.povFilter,
   }))
 
   const setMode = useStore(s => s.setMode)
@@ -44,6 +46,7 @@ export default function Toolbar() {
   const setStatisticsOpen = useStore(s => s.setStatisticsOpen)
   const setWritersRoomOpen = useStore(s => s.setWritersRoomOpen)
   const setFindBarOpen = useStore(s => s.setFindBarOpen)
+  const setPovFilter = useStore(s => s.setPovFilter)
 
   const [showCharManager, setShowCharManager] = useState(false)
   const [showVarManager, setShowVarManager] = useState(false)
@@ -51,6 +54,12 @@ export default function Toolbar() {
   const [saveMsg, setSaveMsg] = useState('')
   const [searchVal, setSearchVal] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Characters that have at least one POV node in the graph
+  const povCharacters = useMemo(() => {
+    const charIds = new Set(project.nodes.filter(n => n.isPov && n.povCharacter).map(n => n.povCharacter!))
+    return project.characters.filter(c => charIds.has(c.id))
+  }, [project.nodes, project.characters])
 
   // Conflict badge count (only run when panel is closed to avoid double computation)
   const conflictErrorCount = useMemo(() => {
@@ -368,6 +377,40 @@ export default function Toolbar() {
               placeholder="Search…"
               style={{ width: 120, fontSize: 12, padding: '4px 10px' }}
             />
+
+            {/* POV filter — only shown when there are POV nodes */}
+            {povCharacters.length > 0 && (
+              <>
+                <div style={{ width: 1, height: 16, background: '#2a3448', flexShrink: 0 }} />
+                <button
+                  className="btn"
+                  style={{
+                    fontSize: 11, padding: '3px 8px',
+                    background: povFilter === null ? '#1a3060' : 'transparent',
+                    border: `1px solid ${povFilter === null ? '#4a80d4' : '#2a3448'}`,
+                    color: povFilter === null ? '#4a80d4' : '#9aa5bb',
+                    flexShrink: 0
+                  }}
+                  onClick={() => setPovFilter(null)}
+                  title="Show all nodes"
+                >All</button>
+                {povCharacters.map(c => (
+                  <button
+                    key={c.id}
+                    className="btn"
+                    style={{
+                      fontSize: 11, padding: '3px 8px',
+                      background: povFilter === c.id ? c.color + '22' : 'transparent',
+                      border: `1px solid ${povFilter === c.id ? c.color : '#2a3448'}`,
+                      color: povFilter === c.id ? c.color : '#9aa5bb',
+                      flexShrink: 0
+                    }}
+                    onClick={() => setPovFilter(povFilter === c.id ? null : c.id)}
+                    title={`Show ${c.name}'s POV thread`}
+                  >{c.name}</button>
+                ))}
+              </>
+            )}
           </div>
         )}
 

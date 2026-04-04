@@ -4,6 +4,9 @@ import type { Character, VariableState } from '../../types'
 import { buildDefaultState, applyEffects, applyBranchEffects, evaluateCondition } from '../../utils/variables'
 import { fileUrl } from '../../utils/fileUrl'
 
+// 'main' = protagonist only (isPov false), 'full' = all nodes, or a characterId for that character's POV only
+type PlayPerspective = 'main' | 'full' | string
+
 interface PlayState {
   nodeId: string
   lineIndex: number
@@ -11,6 +14,7 @@ interface PlayState {
   transitioning: boolean
   transitionType: string
   showChoices: boolean
+  perspective: PlayPerspective
 }
 
 export default function PlayEngine() {
@@ -24,28 +28,54 @@ export default function PlayEngine() {
   const [state, setState] = useState<PlayState | null>(null)
   const [volume, setVolume] = useState(0.8)
   const [showSettings, setShowSettings] = useState(false)
+  // perspective selector shown before play starts
+  const [perspective, setPerspective] = useState<PlayPerspective>('main')
+  const [perspectiveChosen, setPerspectiveChosen] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const sfxRef = useRef<HTMLAudioElement | null>(null)
 
-  // Initialize play
-  useEffect(() => {
-    if (mode !== 'play' || !playFromNodeId) return
-    const initialVars = buildDefaultState(project.variables)
-    const node = project.nodes.find(n => n.id === playFromNodeId)
-    if (!node) return
+  // Characters with POV nodes
+  const povCharacters = project.characters.filter(c =>
+    project.nodes.some(n => n.isPov && n.povCharacter === c.id)
+  )
 
-    // Apply entry effects
+  // Reset perspective selector when play mode is entered
+  useEffect(() => {
+    if (mode === 'play') { setPerspectiveChosen(false); setState(null) }
+  }, [mode, playFromNodeId])
+
+  function startPlay(p: PlayPerspective) {
+    if (!playFromNodeId) return
+    setPerspective(p)
+    setPerspectiveChosen(true)
+
+    let startNodeId = playFromNodeId
+    // For POV-only: find first node of this character
+    if (p !== 'main' && p !== 'full') {
+      const firstPov = project.nodes.find(n => n.isPov && n.povCharacter === p)
+      if (firstPov) startNodeId = firstPov.id
+    }
+
+    const initialVars = buildDefaultState(project.variables)
+    const node = project.nodes.find(n => n.id === startNodeId)
+    if (!node) return
     const varState = applyEffects(initialVars, node.variables)
     setState({
-      nodeId: playFromNodeId,
+      nodeId: startNodeId,
       lineIndex: 0,
       varState,
       transitioning: true,
       transitionType: node.transition,
-      showChoices: false
+      showChoices: false,
+      perspective: p
     })
-    // End transition
     setTimeout(() => setState(s => s ? { ...s, transitioning: false } : s), 600)
+  }
+
+  // Legacy init: when no perspective chosen yet, wait for user selection
+  useEffect(() => {
+    if (mode !== 'play' || !playFromNodeId) return
+    // Don't auto-start; show perspective selector
   }, [mode, playFromNodeId, project.variables])
 
   const currentNode = state ? project.nodes.find(n => n.id === state.nodeId) : null
@@ -75,6 +105,16 @@ export default function PlayEngine() {
     if (audioRef.current) audioRef.current.volume = volume
   }, [volume])
 
+  /** Check if a given nodeId is valid to visit for this perspective */
+  function isNodeAllowed(nodeId: string, persp: PlayPerspective): boolean {
+    const n = project.nodes.find(nd => nd.id === nodeId)
+    if (!n) return false
+    if (persp === 'full') return true
+    if (persp === 'main') return !n.isPov
+    // character POV: only that character's POV nodes
+    return n.isPov && n.povCharacter === persp
+  }
+
   const advance = useCallback(() => {
     if (!state || !currentNode) return
     if (state.showChoices) return
@@ -83,7 +123,6 @@ export default function PlayEngine() {
     const nextIndex = state.lineIndex + 1
 
     if (nextIndex < lines.length) {
-      // Play line SFX if any
       const line = lines[nextIndex]
       if (line.sfx) {
         const asset = project.assets.find(a => a.id === line.sfx)
@@ -99,40 +138,57 @@ export default function PlayEngine() {
 
     // End of lines — check outgoing edges
     const outgoing = project.edges.filter(e => e.from === state.nodeId)
-    const choiceEdges = outgoing.filter(e => e.label)
+    // For POV perspective: choices are not shown, only sequential
+    const choiceEdges = state.perspective === 'main' ? outgoing.filter(e => e.label) : []
     const sequentialEdges = outgoing.filter(e => !e.label)
 
-    // Check branches for conditions
-    const validBranches = currentNode.branches.filter(b =>
-      evaluateCondition(b.condition, state.varState, project.variables)
-    )
+    // For main/full perspective: check branches
+    const validBranches = (state.perspective === 'main' || state.perspective === 'full')
+      ? currentNode.branches.filter(b => evaluateCondition(b.condition, state.varState, project.variables))
+      : []
 
     if (validBranches.length > 0 || choiceEdges.length > 0) {
       setState(s => s ? { ...s, showChoices: true } : s)
       return
     }
 
-    if (sequentialEdges.length === 1) {
-      gotoNode(sequentialEdges[0].to, state.varState)
-      return
+    // Find next allowed sequential node
+    for (const e of sequentialEdges) {
+      if (isNodeAllowed(e.to, state.perspective)) {
+        gotoNode(e.to, state.varState, state.perspective)
+        return
+      }
+      // For POV-only: skip non-POV nodes transparently to find next POV
+      if (state.perspective !== 'main' && state.perspective !== 'full') {
+        let cur: string | null = e.to
+        while (cur) {
+          if (isNodeAllowed(cur, state.perspective)) {
+            gotoNode(cur, state.varState, state.perspective)
+            return
+          }
+          const nextEdge = project.edges.find(ed => ed.from === cur && !ed.label)
+          cur = nextEdge?.to ?? null
+        }
+      }
     }
 
     // End of story
     setState(s => s ? { ...s, showChoices: true } : s)
   }, [state, currentNode, project])
 
-  function gotoNode(nodeId: string, currentVars: VariableState) {
+  function gotoNode(nodeId: string, currentVars: VariableState, persp?: PlayPerspective) {
     const node = project.nodes.find(n => n.id === nodeId)
     if (!node) return
     const newVars = applyEffects(currentVars, node.variables)
-    setState({
+    setState(s => ({
       nodeId,
       lineIndex: 0,
       varState: newVars,
       transitioning: true,
       transitionType: node.transition,
-      showChoices: false
-    })
+      showChoices: false,
+      perspective: persp ?? s?.perspective ?? 'main'
+    }))
     setTimeout(() => setState(s => s ? { ...s, transitioning: false } : s), 600)
   }
 
@@ -149,14 +205,15 @@ export default function PlayEngine() {
     const targetNode = project.nodes.find(n => n.id === target)
     if (targetNode) {
       newVars = applyEffects(newVars, targetNode.variables)
-      setState({
+      setState(s => ({
         nodeId: target,
         lineIndex: 0,
         varState: newVars,
         transitioning: true,
         transitionType: targetNode.transition,
-        showChoices: false
-      })
+        showChoices: false,
+        perspective: s?.perspective ?? 'main'
+      }))
       setTimeout(() => setState(s => s ? { ...s, transitioning: false } : s), 600)
     }
   }
@@ -171,11 +228,84 @@ export default function PlayEngine() {
     return () => window.removeEventListener('keydown', onKey)
   }, [mode, advance])
 
+  // Show perspective selector before play begins
+  if (mode === 'play' && !perspectiveChosen) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: '#060810', zIndex: 50,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16
+      }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#e8ecf4', marginBottom: 8 }}>
+          {project.name}
+        </div>
+        <div style={{ fontSize: 13, color: '#9aa5bb', marginBottom: 16 }}>Choose your perspective</div>
+
+        {/* Protagonist / main path */}
+        <button
+          style={{
+            background: 'rgba(10,32,68,0.9)', border: '1px solid #4a80d4',
+            borderRadius: 8, padding: '14px 28px', color: '#e8ecf4',
+            fontSize: 15, cursor: 'pointer', minWidth: 280, textAlign: 'left',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#0a3060')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,32,68,0.9)')}
+          onClick={() => startPlay('main')}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Protagonist</div>
+          <div style={{ fontSize: 12, color: '#9aa5bb' }}>Main path only</div>
+        </button>
+
+        {/* Per-character POV */}
+        {povCharacters.map(c => (
+          <button
+            key={c.id}
+            style={{
+              background: c.color + '18', border: `1px solid ${c.color}80`,
+              borderRadius: 8, padding: '14px 28px', color: '#e8ecf4',
+              fontSize: 15, cursor: 'pointer', minWidth: 280, textAlign: 'left',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = c.color + '30')}
+            onMouseLeave={e => (e.currentTarget.style.background = c.color + '18')}
+            onClick={() => startPlay(c.id)}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4, color: c.color }}>{c.name}</div>
+            <div style={{ fontSize: 12, color: '#9aa5bb' }}>POV scenes only</div>
+          </button>
+        ))}
+
+        {/* Full story */}
+        <button
+          style={{
+            background: 'rgba(10,18,40,0.6)', border: '1px solid #3a4a68',
+            borderRadius: 8, padding: '14px 28px', color: '#e8ecf4',
+            fontSize: 15, cursor: 'pointer', minWidth: 280, textAlign: 'left',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(20,30,60,0.8)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,18,40,0.6)')}
+          onClick={() => startPlay('full')}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Full story</div>
+          <div style={{ fontSize: 12, color: '#9aa5bb' }}>All nodes — main path and all POV perspectives</div>
+        </button>
+
+        <button
+          className="btn btn-ghost"
+          style={{ marginTop: 8, fontSize: 12 }}
+          onClick={() => setMode('graph')}
+        >◀ Back to editor</button>
+      </div>
+    )
+  }
+
   if (mode !== 'play' || !state || !currentNode) return null
 
   const currentLine = currentNode.dialogueLines[state.lineIndex] ?? null
   const speaker = currentLine?.speaker ? project.characters.find(c => c.id === currentLine.speaker) : null
   const bgAsset = currentNode.background ? project.assets.find(a => a.id === currentNode.background) : null
+  // POV indicator: show which character's perspective is active
+  const povIndicatorChar = currentNode.isPov && currentNode.povCharacter
+    ? project.characters.find(c => c.id === currentNode.povCharacter)
+    : null
 
   // Character positions
   const positions = ['left', 'center', 'right'] as const
@@ -384,6 +514,20 @@ export default function PlayEngine() {
             style={{ fontSize: 14, padding: '10px 24px' }}
             onClick={() => setMode('graph')}
           >Back to Editor</button>
+        </div>
+      )}
+
+      {/* POV indicator badge */}
+      {povIndicatorChar && (
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+          background: povIndicatorChar.color + '22',
+          border: `1px solid ${povIndicatorChar.color}80`,
+          borderRadius: 20, padding: '4px 14px',
+          fontSize: 12, fontWeight: 700, color: povIndicatorChar.color,
+          pointerEvents: 'none'
+        }}>
+          {povIndicatorChar.name}'s POV
         </div>
       )}
 

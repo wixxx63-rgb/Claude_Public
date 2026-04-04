@@ -8,6 +8,7 @@ import EdgePopover from './EdgePopover'
 import { traceForward, traceBackward, traceEdges } from '../../utils/pathTracer'
 
 const NODE_RADIUS = 52
+const POV_RADIUS = 40
 const COLORS = {
   scene:    { fill: '#0a2044', stroke: '#4a80d4' },
   decision: { fill: '#302000', stroke: '#d4a040' },
@@ -55,12 +56,13 @@ export default function GraphCanvas() {
   // Always points to the latest draw() function so event handlers can call it
   const drawFnRef = useRef<() => void>(() => {})
 
-  const { project, selectedNodeId, canvasTransform, linkModeActive, searchQuery } = useStore(s => ({
+  const { project, selectedNodeId, canvasTransform, linkModeActive, searchQuery, povFilter } = useStore(s => ({
     project: s.project,
     selectedNodeId: s.selectedNodeId,
     canvasTransform: s.canvasTransform,
     linkModeActive: s.linkModeActive,
-    searchQuery: s.searchQuery
+    searchQuery: s.searchQuery,
+    povFilter: s.povFilter
   }))
   const setCanvasTransform = useStore(s => s.setCanvasTransform)
   const navigateTo = useStore(s => s.navigateTo)
@@ -116,8 +118,9 @@ export default function GraphCanvas() {
     // Reverse iterate to hit topmost
     for (let i = project.nodes.length - 1; i >= 0; i--) {
       const n = project.nodes[i]
+      const r = n.isPov ? POV_RADIUS : NODE_RADIUS
       const dx = wx - n.x, dy = wy - n.y
-      if (Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS) return n
+      if (Math.sqrt(dx * dx + dy * dy) <= r) return n
     }
     return null
   }
@@ -217,6 +220,67 @@ export default function GraphCanvas() {
       ctx.restore()
     }
 
+    // POV filter: compute per-node alpha overrides and draw character thread
+    let povAlphaOverride: Map<string, number> | null = null
+    let povOrderedNodes: StoryNode[] = []
+    if (povFilter) {
+      povAlphaOverride = new Map()
+      // Get POV nodes of selected character in graph traversal order
+      const hasInc = new Set(project.edges.map(e => e.to))
+      const edgeMap = new Map<string, string[]>()
+      project.edges.forEach(e => {
+        if (!edgeMap.has(e.from)) edgeMap.set(e.from, [])
+        edgeMap.get(e.from)!.push(e.to)
+      })
+      const visited = new Set<string>()
+      const queue = project.nodes.filter(n => !hasInc.has(n.id)).map(n => n.id)
+      while (queue.length > 0) {
+        const id = queue.shift()!
+        if (visited.has(id)) continue
+        visited.add(id)
+        const n = project.nodes.find(nd => nd.id === id)
+        if (n?.isPov && n.povCharacter === povFilter) povOrderedNodes.push(n)
+        ;(edgeMap.get(id) ?? []).forEach(nid => queue.push(nid))
+      }
+      // Any disconnected POV nodes of this character
+      project.nodes.forEach(n => {
+        if (n.isPov && n.povCharacter === povFilter && !visited.has(n.id)) povOrderedNodes.push(n)
+      })
+
+      project.nodes.forEach(n => {
+        if (!n.isPov) {
+          // Main path nodes: dimmed to 40%
+          povAlphaOverride!.set(n.id, 0.4)
+        } else if (n.povCharacter === povFilter) {
+          // Selected character's POV nodes: full
+          povAlphaOverride!.set(n.id, 1)
+        } else {
+          // Other characters' POV nodes: hidden
+          povAlphaOverride!.set(n.id, 0)
+        }
+      })
+
+      // Draw character thread line connecting POV nodes of selected character
+      if (povOrderedNodes.length > 1) {
+        const char = project.characters.find(c => c.id === povFilter)
+        const threadColor = char?.color ?? '#40c0a0'
+        ctx.save()
+        ctx.strokeStyle = threadColor
+        ctx.lineWidth = 2
+        ctx.globalAlpha = 0.6
+        ctx.setLineDash([8, 5])
+        ctx.beginPath()
+        for (let i = 0; i < povOrderedNodes.length; i++) {
+          const [sx2, sy2] = worldToScreen(povOrderedNodes[i].x, povOrderedNodes[i].y, t)
+          if (i === 0) ctx.moveTo(sx2, sy2)
+          else ctx.lineTo(sx2, sy2)
+        }
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
     // Draw nodes
     project.nodes.forEach(node => {
       const isSelected = node.id === selectedNodeId
@@ -226,10 +290,40 @@ export default function GraphCanvas() {
       const isSearchDim = searchQuery ? !searchMatches.has(node.id) : false
       const isTraced = tracedNodes.has(node.id)
       const isTracerSource = node.id === pathTracerNodeId
-      const alpha = isDim || isSearchDim ? 0.15 : 1
-      drawNode(ctx, node, t, isSelected, alpha, linkModeActive, isTraced, isTracerSource)
+      let alpha = isDim || isSearchDim ? 0.15 : 1
+      // POV filter overrides alpha (but never hides selected node)
+      if (povAlphaOverride && node.id !== selectedNodeId) {
+        const ov = povAlphaOverride.get(node.id)
+        if (ov !== undefined) alpha = ov
+      }
+      const povCharColor = node.isPov && node.povCharacter
+        ? (project.characters.find(c => c.id === node.povCharacter)?.color ?? null)
+        : null
+      drawNode(ctx, node, t, isSelected, alpha, linkModeActive, isTraced, isTracerSource, povCharColor)
     })
     ctx.restore()
+
+    // POV filter legend
+    if (povFilter) {
+      const char = project.characters.find(c => c.id === povFilter)
+      if (char) {
+        ctx.save()
+        ctx.fillStyle = 'rgba(15,17,23,0.85)'
+        ctx.beginPath()
+        const lx = 16, ly = H - 48, lw = 180, lh = 32
+        ctx.roundRect(lx, ly, lw, lh, 6)
+        ctx.fill()
+        ctx.strokeStyle = char.color
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        ctx.fillStyle = char.color
+        ctx.font = 'bold 12px -apple-system, sans-serif'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`POV: ${char.name}`, lx + 10, ly + lh / 2)
+        ctx.restore()
+      }
+    }
   }
 
   function drawGrid(ctx: CanvasRenderingContext2D, W: number, H: number, t: CanvasTransform) {
@@ -323,11 +417,16 @@ export default function GraphCanvas() {
     isSelected: boolean, alpha: number,
     linkMode: boolean,
     isTraced = false,
-    isTracerSource = false
+    isTracerSource = false,
+    povCharColor: string | null = null
   ) {
     const [sx, sy] = worldToScreen(node.x, node.y, t)
-    const r = NODE_RADIUS * t.scale
+    const baseR = node.isPov ? POV_RADIUS : NODE_RADIUS
+    const r = baseR * t.scale
     const colors = COLORS[node.type]
+
+    // Skip fully hidden nodes (POV filter: other characters)
+    if (alpha === 0) return
 
     ctx.save()
     ctx.globalAlpha = alpha
@@ -344,21 +443,38 @@ export default function GraphCanvas() {
       ctx.shadowBlur = 0
     }
 
+    // POV accent ring (outer colored ring using character color)
+    if (node.isPov && povCharColor) {
+      ctx.beginPath()
+      ctx.arc(sx, sy, r + 4, 0, Math.PI * 2)
+      ctx.strokeStyle = povCharColor
+      ctx.lineWidth = isSelected ? 3 : 2
+      ctx.shadowColor = povCharColor
+      ctx.shadowBlur = isSelected ? 14 : 8
+      ctx.stroke()
+      ctx.shadowBlur = 0
+    }
+
     // Shadow for selected
     if (isSelected) {
-      ctx.shadowColor = colors.stroke
+      ctx.shadowColor = povCharColor ?? colors.stroke
       ctx.shadowBlur = 20
     }
 
-    // Fill
+    // Fill: POV nodes get a subtle tint toward character color
+    let fillStyle = colors.fill
+    if (node.isPov && povCharColor) {
+      // Blend base fill with character color at ~20%
+      fillStyle = blendHex(colors.fill, povCharColor, 0.2)
+    }
     ctx.beginPath()
     ctx.arc(sx, sy, r, 0, Math.PI * 2)
-    ctx.fillStyle = colors.fill
+    ctx.fillStyle = fillStyle
     ctx.fill()
 
     // Stroke
-    ctx.strokeStyle = isTraced ? '#40c0a0' : colors.stroke
-    ctx.lineWidth = isSelected ? 3 : isTraced ? 2.5 : 2
+    ctx.strokeStyle = isTraced ? '#40c0a0' : (node.isPov && povCharColor ? povCharColor : colors.stroke)
+    ctx.lineWidth = isSelected ? 3 : isTraced ? 2.5 : node.isPov ? 1.5 : 2
     ctx.stroke()
     ctx.shadowBlur = 0
 
@@ -367,14 +483,14 @@ export default function GraphCanvas() {
     if (node.status === 'done') {
       ctx.beginPath()
       ctx.arc(sx, sy, ringR, 0, Math.PI * 2)
-      ctx.strokeStyle = colors.stroke
+      ctx.strokeStyle = node.isPov && povCharColor ? povCharColor : colors.stroke
       ctx.lineWidth = 2
       ctx.globalAlpha = alpha * 0.6
       ctx.stroke()
     } else if (node.status === 'inprog') {
       ctx.beginPath()
       ctx.arc(sx, sy, ringR, -Math.PI / 2, Math.PI / 2)
-      ctx.strokeStyle = colors.stroke
+      ctx.strokeStyle = node.isPov && povCharColor ? povCharColor : colors.stroke
       ctx.lineWidth = 2
       ctx.globalAlpha = alpha * 0.6
       ctx.stroke()
@@ -383,7 +499,7 @@ export default function GraphCanvas() {
 
     // Title text
     const maxWidth = r * 1.6
-    ctx.font = `bold ${Math.max(10, 12 * t.scale)}px -apple-system, sans-serif`
+    ctx.font = `bold ${Math.max(9, 11 * t.scale)}px -apple-system, sans-serif`
     ctx.fillStyle = '#e8ecf4'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -395,32 +511,37 @@ export default function GraphCanvas() {
       ctx.font = `${10 * t.scale}px -apple-system, sans-serif`
       ctx.fillStyle = '#5e6e8a'
       ctx.fillText(node.id, sx, sy + r + 10 * t.scale)
+      // Character name below ID for POV nodes
+      if (node.isPov && povCharColor && t.scale > 0.5) {
+        const charName = project.characters.find(c => c.id === node.povCharacter)?.name ?? ''
+        if (charName) {
+          ctx.font = `${9 * t.scale}px -apple-system, sans-serif`
+          ctx.fillStyle = povCharColor
+          ctx.fillText(charName, sx, sy + r + 22 * t.scale)
+        }
+      }
     }
 
-    // Dot indicators
-    const dotR = Math.max(4, 5 * t.scale)
-
-    // Gold dot (branches) — top right
-    if (node.branches.length > 0) {
-      ctx.beginPath()
-      ctx.arc(sx + r * 0.7, sy - r * 0.7, dotR, 0, Math.PI * 2)
-      ctx.fillStyle = '#d4a040'
-      ctx.fill()
-    }
-
-    // Purple dot (grokHandoff) — top left
-    if (node.grokHandoff) {
-      ctx.beginPath()
-      ctx.arc(sx - r * 0.7, sy - r * 0.7, dotR, 0, Math.PI * 2)
-      ctx.fillStyle = '#9060d0'
-      ctx.fill()
-    }
-
-    // Image icon — bottom
-    if (node.background) {
-      ctx.font = `${Math.max(8, 10 * t.scale)}px -apple-system, sans-serif`
-      ctx.fillStyle = '#5e6e8a'
-      ctx.fillText('⬛', sx, sy + r * 0.7)
+    // Dot indicators (only for non-POV nodes, or POV with branches)
+    if (!node.isPov) {
+      const dotR = Math.max(4, 5 * t.scale)
+      if (node.branches.length > 0) {
+        ctx.beginPath()
+        ctx.arc(sx + r * 0.7, sy - r * 0.7, dotR, 0, Math.PI * 2)
+        ctx.fillStyle = '#d4a040'
+        ctx.fill()
+      }
+      if (node.grokHandoff) {
+        ctx.beginPath()
+        ctx.arc(sx - r * 0.7, sy - r * 0.7, dotR, 0, Math.PI * 2)
+        ctx.fillStyle = '#9060d0'
+        ctx.fill()
+      }
+      if (node.background) {
+        ctx.font = `${Math.max(8, 10 * t.scale)}px -apple-system, sans-serif`
+        ctx.fillStyle = '#5e6e8a'
+        ctx.fillText('⬛', sx, sy + r * 0.7)
+      }
     }
 
     // Link handle
@@ -442,6 +563,18 @@ export default function GraphCanvas() {
     }
 
     ctx.restore()
+  }
+
+  // Blend two hex colors: amount 0=base, 1=overlay
+  function blendHex(base: string, overlay: string, amount: number): string {
+    const p = (h: string) => parseInt(h.replace('#','').padEnd(6,'0'), 16)
+    const b = p(base), o = p(overlay)
+    const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff
+    const or = (o >> 16) & 0xff, og = (o >> 8) & 0xff, ob = o & 0xff
+    const r = Math.round(br + (or - br) * amount)
+    const g = Math.round(bg + (og - bg) * amount)
+    const bv = Math.round(bb + (ob - bb) * amount)
+    return '#' + [r, g, bv].map(v => v.toString(16).padStart(2, '0')).join('')
   }
 
   function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {

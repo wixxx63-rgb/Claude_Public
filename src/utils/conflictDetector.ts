@@ -22,6 +22,8 @@ export function detectConflicts(project: Project): ConflictIssue[] {
     if (hasIncoming.has(n.id)) return
     if (n.type === 'ending' || n.type === 'death') return
     if (startNode && n.id === startNode.id) return
+    // POV nodes inserted correctly always have an incoming edge — if one doesn't
+    // it's genuinely disconnected and should be flagged just like any other node.
     issues.push({
       id: uuidv4(),
       type: 'orphan',
@@ -37,15 +39,29 @@ export function detectConflicts(project: Project): ConflictIssue[] {
     if (n.type === 'ending' || n.type === 'death') return
     const outgoing = edges.filter(e => e.from === n.id)
     const hasBranchLeads = n.branches.some(b => b.leads.length > 0)
+    // A POV node is correctly structured as long as it has one outgoing sequential edge
+    // (leading to the next node in the story). Only flag if completely disconnected.
     if (outgoing.length === 0 && !hasBranchLeads) {
-      issues.push({
-        id: uuidv4(),
-        type: 'dead-end',
-        severity: 'error',
-        nodeId: n.id,
-        description: `"${n.title}" (${n.id}) has no outgoing edges — the story stops unexpectedly here.`,
-        suggestion: 'Add a connection to the next scene, or change the node type to "ending" or "death".'
-      })
+      if (n.isPov) {
+        // POV node with no outgoing edge: flag as informational, not error
+        issues.push({
+          id: uuidv4(),
+          type: 'dead-end',
+          severity: 'info',
+          nodeId: n.id,
+          description: `POV scene "${n.title}" (${n.id}) has no outgoing connection.`,
+          suggestion: 'Connect this POV scene to the next scene in the story.'
+        })
+      } else {
+        issues.push({
+          id: uuidv4(),
+          type: 'dead-end',
+          severity: 'error',
+          nodeId: n.id,
+          description: `"${n.title}" (${n.id}) has no outgoing edges — the story stops unexpectedly here.`,
+          suggestion: 'Add a connection to the next scene, or change the node type to "ending" or "death".'
+        })
+      }
     }
   })
 

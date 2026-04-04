@@ -83,6 +83,9 @@ export interface StoryNode {
   transition: TransitionType
   dialogueLines: DialogueLine[]
   variables: VariableEffect[]
+  // POV system
+  isPov: boolean
+  povCharacter: string | null
 }
 
 export interface Edge {

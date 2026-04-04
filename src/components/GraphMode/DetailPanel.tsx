@@ -5,6 +5,31 @@ import { v4 as uuidv4 } from 'uuid'
 import AddChoicesForm from './AddChoicesForm'
 import DependencyMap from './DependencyMap'
 
+// ── POV helpers ────────────────────────────────────────────────────────────
+
+/** Return all POV nodes for a character in BFS graph-traversal order */
+function getPovNodesOrdered(charId: string, nodes: StoryNode[], edges: { from: string; to: string }[]): StoryNode[] {
+  const edgeMap = new Map<string, string[]>()
+  edges.forEach(e => {
+    if (!edgeMap.has(e.from)) edgeMap.set(e.from, [])
+    edgeMap.get(e.from)!.push(e.to)
+  })
+  const hasIncoming = new Set(edges.map(e => e.to))
+  const visited = new Set<string>()
+  const result: StoryNode[] = []
+  const queue = nodes.filter(n => !hasIncoming.has(n.id)).map(n => n.id)
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    if (visited.has(id)) continue
+    visited.add(id)
+    const n = nodes.find(nd => nd.id === id)
+    if (n?.isPov && n.povCharacter === charId) result.push(n)
+    ;(edgeMap.get(id) ?? []).forEach(nid => queue.push(nid))
+  }
+  nodes.forEach(n => { if (n.isPov && n.povCharacter === charId && !visited.has(n.id)) result.push(n) })
+  return result
+}
+
 const NODE_TYPES: NodeType[] = ['scene', 'decision', 'grok', 'death', 'ending']
 const STATUS_OPTIONS: { value: NodeStatus; label: string }[] = [
   { value: 'todo', label: 'Todo' },
@@ -34,10 +59,13 @@ export default function DetailPanel() {
   const createNodeAt = useStore(s => s.createNodeAt)
   const duplicateNode = useStore(s => s.duplicateNode)
   const snapshotForUndo = useStore(s => s.snapshotForUndo)
+  const createPovNode = useStore(s => s.createPovNode)
 
   const [showAddChoices, setShowAddChoices] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showDepsMap, setShowDepsMap] = useState(false)
+  const [showPovForm, setShowPovForm] = useState(false)
+  const [povCharSelect, setPovCharSelect] = useState('')
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Cancel pending debounced updates when unmounting or switching nodes
@@ -69,27 +97,84 @@ export default function DetailPanel() {
   }
 
   function handleNext() {
+    // POV node: navigate to next POV node of same character
+    if (node.isPov && node.povCharacter) {
+      const ordered = getPovNodesOrdered(node.povCharacter, project.nodes, project.edges)
+      const idx = ordered.findIndex(n => n.id === node.id)
+      if (idx >= 0 && idx < ordered.length - 1) { navigateTo(ordered[idx + 1].id); return }
+      return
+    }
     const sequential = outgoingEdges.filter(e => !e.label)
     if (sequential.length >= 1) {
-      // Navigate to existing sequential edge — never create a duplicate
       navigateTo(sequential[0].to)
       return
     }
-    // No sequential edge exists — create new node
     const newNode = createNodeAt(node.x, node.y + 220)
-    const edge = { id: uuidv4(), from: node.id, to: newNode.id, label: '', desc: '', isDeath: false }
-    addEdge(edge)
+    addEdge({ id: uuidv4(), from: node.id, to: newNode.id, label: '', desc: '', isDeath: false })
     navigateTo(newNode.id)
   }
 
   function handlePrevious() {
+    // POV node: navigate to previous POV node of same character
+    if (node.isPov && node.povCharacter) {
+      const ordered = getPovNodesOrdered(node.povCharacter, project.nodes, project.edges)
+      const idx = ordered.findIndex(n => n.id === node.id)
+      if (idx > 0) { navigateTo(ordered[idx - 1].id); return }
+      return
+    }
     if (incomingEdges.length === 1) {
       navigateTo(incomingEdges[0].from)
     }
-    // If multiple, show a dropdown (handled via state)
+    // If multiple, show dropdown (handled via state)
   }
 
   const [showPrevDropdown, setShowPrevDropdown] = useState(false)
+
+  // POV context: main path nodes immediately before/after this POV node
+  const povMainContext = (() => {
+    if (!node.isPov) return null
+    let prevId: string | null = incomingEdges[0]?.from ?? null
+    while (prevId) {
+      const pn = project.nodes.find(n => n.id === prevId)
+      if (!pn?.isPov) break
+      prevId = project.edges.find(e => e.to === prevId && !e.label)?.from ?? null
+    }
+    let nextId: string | null = outgoingEdges.find(e => !e.label)?.to ?? null
+    while (nextId) {
+      const nn = project.nodes.find(n => n.id === nextId)
+      if (!nn?.isPov) break
+      nextId = project.edges.find(e => e.from === nextId && !e.label)?.to ?? null
+    }
+    return { prevMainId: prevId, nextMainId: nextId }
+  })()
+
+  // POV scenes inserted after this main path node (before next main path node)
+  const povScenesAtPoint = (() => {
+    if (node.isPov) return []
+    const result: StoryNode[] = []
+    let cur: string | null = outgoingEdges.find(e => !e.label)?.to ?? null
+    while (cur) {
+      const n2 = project.nodes.find(nd => nd.id === cur)
+      if (!n2?.isPov) break
+      result.push(n2)
+      cur = project.edges.find(e => e.from === cur && !e.label)?.to ?? null
+    }
+    return result
+  })()
+
+  function handleCreatePov() {
+    if (!povCharSelect) return
+    const newNode = createPovNode(node.id, povCharSelect)
+    if (newNode) { setShowPovForm(false); setPovCharSelect(''); navigateTo(newNode.id) }
+  }
+
+  const povChar = node.isPov ? project.characters.find(c => c.id === node.povCharacter) : null
+  const nextPovNode = (() => {
+    if (!node.isPov || !node.povCharacter) return null
+    const ordered = getPovNodesOrdered(node.povCharacter, project.nodes, project.edges)
+    const idx = ordered.findIndex(n => n.id === node.id)
+    return idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null
+  })()
 
   return (
     <div style={{
@@ -108,7 +193,17 @@ export default function DetailPanel() {
       {/* Header */}
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #2a3448', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span className={`badge badge-${node.type}`}>{node.type}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className={`badge badge-${node.type}`}>{node.type}</span>
+            {node.isPov && povChar && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                background: povChar.color + '22', color: povChar.color,
+                border: `1px solid ${povChar.color}60`
+              }}>POV · {povChar.name}</span>
+            )}
+          </div>
           <button
             className="btn btn-ghost"
             style={{ padding: '2px 6px', fontSize: 16 }}
@@ -252,7 +347,54 @@ export default function DetailPanel() {
           />
         </div>
 
-        {/* Branches */}
+        {/* Main path context — shown for POV nodes */}
+        {node.isPov && povMainContext && (
+          <div className="field-row">
+            <div className="section-header">
+              <span className="section-title">Main path context</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: '#9aa5bb' }}>
+              {povMainContext.prevMainId ? (
+                <span className="chip" onClick={() => navigateTo(povMainContext.prevMainId!)}>
+                  ◀ {povMainContext.prevMainId}
+                </span>
+              ) : <span style={{ color: '#5e6e8a' }}>← start</span>}
+              <span style={{ color: '#5e6e8a' }}>→ [this POV] →</span>
+              {povMainContext.nextMainId ? (
+                <span className="chip" onClick={() => navigateTo(povMainContext.nextMainId!)}>
+                  {povMainContext.nextMainId} ▶
+                </span>
+              ) : <span style={{ color: '#5e6e8a' }}>end →</span>}
+            </div>
+          </div>
+        )}
+
+        {/* POV scenes at this point — shown for main path nodes */}
+        {!node.isPov && povScenesAtPoint.length > 0 && (
+          <div className="field-row">
+            <div className="section-header">
+              <span className="section-title">POV scenes at this point</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {povScenesAtPoint.map(pn => {
+                const pChar = project.characters.find(c => c.id === pn.povCharacter)
+                return (
+                  <span
+                    key={pn.id}
+                    className="chip"
+                    onClick={() => navigateTo(pn.id)}
+                    style={{ color: pChar?.color ?? '#9aa5bb', borderColor: (pChar?.color ?? '#3a4a68') + '60' }}
+                  >
+                    {pChar?.name ?? '?'} · {pn.id}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Branches — hidden for POV nodes */}
+        {!node.isPov && (
         <div className="field-row">
           <div className="section-header">
             <span className="section-title">Branches</span>
@@ -297,6 +439,7 @@ export default function DetailPanel() {
             />
           ))}
         </div>
+        )}
 
         {/* Connections */}
         <div className="field-row">
@@ -432,11 +575,59 @@ export default function DetailPanel() {
           >Next ▶</button>
         </div>
 
-        <button
-          className="btn btn-primary"
-          style={{ width: '100%', marginBottom: 6, fontSize: 12 }}
-          onClick={() => setShowAddChoices(true)}
-        >+ Add choices</button>
+        {!node.isPov && (
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', marginBottom: 6, fontSize: 12 }}
+            onClick={() => setShowAddChoices(true)}
+          >+ Add choices</button>
+        )}
+
+        {/* + POV scene button + inline form */}
+        {!showPovForm ? (
+          <button
+            className="btn btn-ghost"
+            style={{ width: '100%', marginBottom: 6, fontSize: 12, color: '#9060d0', borderColor: '#9060d0' + '60' }}
+            onClick={() => { setShowPovForm(true); setPovCharSelect(project.characters[0]?.id ?? '') }}
+          >+ POV scene</button>
+        ) : (
+          <div style={{ background: '#200840', border: '1px solid #9060d060', borderRadius: 6, padding: '10px 12px', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9060d0', marginBottom: 8 }}>New POV Scene</div>
+            {project.characters.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#5e6e8a', marginBottom: 8 }}>
+                Create characters in the Characters tab first.
+              </div>
+            ) : (
+              <>
+                <label className="field-label">Character POV</label>
+                <select
+                  value={povCharSelect}
+                  onChange={e => setPovCharSelect(e.target.value)}
+                  style={{ width: '100%', marginBottom: 8, fontSize: 12 }}
+                >
+                  {project.characters.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {(() => {
+                  const nextSeq = outgoingEdges.find(e => !e.label)?.to
+                  return (
+                    <div style={{ fontSize: 11, color: '#9aa5bb', marginBottom: 8 }}>
+                      Insert after <strong>{node.id}</strong>
+                      {nextSeq ? <> and before <strong>{nextSeq}</strong></> : null}.
+                    </div>
+                  )
+                })()}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, fontSize: 12, background: '#400860', borderColor: '#9060d0' }}
+                    onClick={handleCreatePov}>Confirm</button>
+                  <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12 }}
+                    onClick={() => setShowPovForm(false)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
           <button className="btn btn-ghost" style={{ flex: 1, fontSize: 12 }}

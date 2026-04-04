@@ -68,6 +68,7 @@ interface AppState {
   simulatorOpen: boolean
   statisticsOpen: boolean
   writersRoomOpen: boolean
+  povFilter: string | null
 
   // Undo/redo stacks
   undoStack: UndoAction[]
@@ -89,6 +90,7 @@ interface AppState {
   setSimulatorOpen: (v: boolean) => void
   setStatisticsOpen: (v: boolean) => void
   setWritersRoomOpen: (v: boolean) => void
+  setPovFilter: (id: string | null) => void
 
   // ── Project operations ────────────────────────────────────────────────
 
@@ -103,6 +105,7 @@ interface AppState {
   moveNode: (id: string, x: number, y: number) => void
   createNodeAt: (x: number, y: number, type?: NodeType) => StoryNode
   duplicateNode: (id: string) => StoryNode | null
+  createPovNode: (afterNodeId: string, characterId: string) => StoryNode | null
 
   // ── Edge operations ───────────────────────────────────────────────────
 
@@ -202,6 +205,7 @@ export const useStore = create<AppState>((set, get) => ({
   simulatorOpen: false,
   statisticsOpen: false,
   writersRoomOpen: false,
+  povFilter: null,
   undoStack: [],
   redoStack: [],
   autoSaveTimer: null,
@@ -222,10 +226,17 @@ export const useStore = create<AppState>((set, get) => ({
   setSimulatorOpen: (v) => set({ simulatorOpen: v }),
   setStatisticsOpen: (v) => set({ statisticsOpen: v }),
   setWritersRoomOpen: (v) => set({ writersRoomOpen: v }),
+  setPovFilter: (id) => set({ povFilter: id }),
 
   loadProject: (p) => set({
     project: {
       ...p,
+      // Backfill POV fields for nodes from old project files
+      nodes: (p.nodes ?? []).map(n => ({
+        isPov: false,
+        povCharacter: null,
+        ...n
+      })),
       playthroughs: p.playthroughs ?? [],
       writerRoom: (p.writerRoom && p.writerRoom.length > 0)
         ? p.writerRoom
@@ -246,6 +257,7 @@ export const useStore = create<AppState>((set, get) => ({
     writersRoomOpen: false,
     findBarOpen: false,
     searchQuery: '',
+    povFilter: null,
   }),
 
   setProjectName: (name) => {
@@ -277,7 +289,22 @@ export const useStore = create<AppState>((set, get) => ({
   deleteNode: (id) => {
     const { project, selectedNodeId } = get()
     get().snapshotForUndo('node_deleted')
-    const edges = project.edges.filter(e => e.from !== id && e.to !== id)
+    const node = project.nodes.find(n => n.id === id)
+    const incoming = project.edges.filter(e => e.to === id)
+    const outgoing = project.edges.filter(e => e.from === id)
+    let edges = project.edges.filter(e => e.from !== id && e.to !== id)
+    // Heal the graph: if this is a POV node with exactly one in and one out edge,
+    // reconnect predecessor → successor so no orphaned path
+    if (node?.isPov && incoming.length === 1 && outgoing.length === 1) {
+      edges.push({
+        id: uuidv4(),
+        from: incoming[0].from,
+        to: outgoing[0].to,
+        label: '',
+        desc: '',
+        isDeath: false
+      })
+    }
     set(s => ({
       project: {
         ...s.project,
@@ -326,10 +353,81 @@ export const useStore = create<AppState>((set, get) => ({
       sfx: null,
       transition: 'fade',
       dialogueLines: [],
-      variables: []
+      variables: [],
+      isPov: false,
+      povCharacter: null
     }
     get().addNode(node)
     return node
+  },
+
+  createPovNode: (afterNodeId, characterId) => {
+    const { project } = get()
+    const afterNode = project.nodes.find(n => n.id === afterNodeId)
+    if (!afterNode) return null
+    const char = project.characters.find(c => c.id === characterId)
+    if (!char) return null
+
+    // Generate unique ID: CHARNAME-1, CHARNAME-2, ...
+    const baseName = char.name.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'POV'
+    const existingCount = project.nodes.filter(n => n.isPov && n.povCharacter === characterId).length
+    let seq = existingCount + 1
+    let newId = `${baseName}-${seq}`
+    while (project.nodes.some(n => n.id === newId)) { seq++; newId = `${baseName}-${seq}` }
+
+    // Find the sequential outgoing edge from afterNode
+    const seqEdge = project.edges.find(e => e.from === afterNodeId && !e.label)
+    const nextNodeId = seqEdge?.to ?? null
+    const nextNode = nextNodeId ? project.nodes.find(n => n.id === nextNodeId) : null
+
+    // Position between predecessor and successor (offset up)
+    const povX = nextNode ? (afterNode.x + nextNode.x) / 2 : afterNode.x + 220
+    const povY = (nextNode ? (afterNode.y + nextNode.y) / 2 : afterNode.y) - 90
+
+    const povNode: StoryNode = {
+      id: newId,
+      title: `${char.name} — POV`,
+      type: 'scene',
+      status: 'todo',
+      day: afterNode.day,
+      block: afterNode.block,
+      path: '',
+      x: povX,
+      y: povY,
+      summary: '',
+      trigger: '',
+      chars: [characterId],
+      branches: [],
+      dialogue: '',
+      grokHandoff: '',
+      consequences: '',
+      background: null,
+      music: null,
+      sfx: null,
+      transition: 'fade',
+      dialogueLines: [],
+      variables: [],
+      isPov: true,
+      povCharacter: characterId
+    }
+
+    get().snapshotForUndo('node_created')
+    set(s => {
+      // Remove existing sequential edge from afterNode
+      const edges = s.project.edges.filter(e => e.id !== seqEdge?.id)
+      // afterNode → povNode
+      edges.push({ id: uuidv4(), from: afterNodeId, to: newId, label: '', desc: '', isDeath: false })
+      // povNode → nextNode (if exists)
+      if (nextNodeId) {
+        edges.push({ id: uuidv4(), from: newId, to: nextNodeId, label: '', desc: '', isDeath: false })
+      }
+      return {
+        project: { ...s.project, nodes: [...s.project.nodes, povNode], edges },
+        isDirty: true
+      }
+    })
+    scheduleAutoSave(get)
+    return povNode
   },
 
   duplicateNode: (id) => {
