@@ -1,6 +1,6 @@
 {
   "name": "narrative-flow",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Visual Novel Builder - Graph editor and story engine",
   "main": "out/main/index.js",
   "scripts": {
@@ -29,7 +29,7 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "zip",
           "arch": ["x64"]
         }
       ],
