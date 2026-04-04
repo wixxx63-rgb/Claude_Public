@@ -66,7 +66,20 @@ export default function CharacterManager({ onClose }: Props) {
 
   return (
     <div className="overlay">
-      <div className="modal" style={{ minWidth: 600, maxWidth: 700, height: '80vh', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{
+        background: '#1a2032',
+        border: '1px solid #2a3448',
+        borderRadius: 8,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        minWidth: 600,
+        maxWidth: 700,
+        width: 660,
+        height: '80vh',
+        padding: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #2a3448', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700 }}>Characters</h2>
           <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={onClose}>✕</button>

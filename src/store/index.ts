@@ -237,6 +237,10 @@ export const useStore = create<AppState>((set, get) => ({
         povCharacter: null,
         ...n
       })),
+      characters: p.characters ?? [],
+      variables: p.variables ?? [],
+      assets: p.assets ?? [],
+      edges: p.edges ?? [],
       playthroughs: p.playthroughs ?? [],
       writerRoom: (p.writerRoom && p.writerRoom.length > 0)
         ? p.writerRoom

@@ -238,6 +238,41 @@ export default function DetailPanel() {
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
 
+        {/* POV Assignment */}
+        <div className="field-row">
+          <div className="section-header">
+            <span className="section-title">POV</span>
+          </div>
+          {!node.isPov ? (
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 12, color: '#9060d0', borderColor: '#9060d060' }}
+              onClick={() => {
+                if (project.characters.length === 0) { alert('Create characters first in the Characters tab.'); return }
+                snapshotForUndo('field_edited')
+                updateNode(node.id, { isPov: true, povCharacter: project.characters[0].id })
+              }}
+            >Mark as POV scene…</button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={node.povCharacter ?? ''}
+                onChange={e => { snapshotForUndo('field_edited'); updateNode(node.id, { povCharacter: e.target.value }) }}
+                style={{ flex: 1, fontSize: 12 }}
+              >
+                {project.characters.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize: 12, color: '#e06060', flexShrink: 0 }}
+                onClick={() => { snapshotForUndo('field_edited'); updateNode(node.id, { isPov: false, povCharacter: null }) }}
+              >Remove POV</button>
+            </div>
+          )}
+        </div>
+
         {/* Status */}
         <div className="field-row">
           <label className="field-label">Status</label>
@@ -466,7 +501,16 @@ export default function DetailPanel() {
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {incomingEdges.map(e => (
-              <span key={e.id} className="chip" onClick={() => navigateTo(e.from)}>{e.from}</span>
+              <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className="chip" onClick={() => navigateTo(e.from)}>
+                  {e.label ? `[${e.label}] ` : ''}{e.from}
+                </span>
+                <button
+                  className="chip-x"
+                  title="Remove edge"
+                  onClick={() => { if (confirm(`Remove edge from ${e.from}?`)) deleteEdge(e.id) }}
+                >✕</button>
+              </div>
             ))}
             {incomingEdges.length === 0 && <span style={{ fontSize: 12, color: '#5e6e8a' }}>None</span>}
           </div>
