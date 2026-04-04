@@ -158,7 +158,7 @@ export default function CharacterManager({ onClose }: Props) {
                     <button className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }}
                       onClick={() => addSprite(selected.id)}>+ Add sprite</button>
                   </div>
-                  {selected.sprites.map(sprite => {
+                  {(selected.sprites ?? []).map(sprite => {
                     const asset = project.assets.find(a => a.id === sprite.assetId)
                     return (
                       <div key={sprite.id} style={{
@@ -193,7 +193,7 @@ export default function CharacterManager({ onClose }: Props) {
                       </div>
                     )
                   })}
-                  {selected.sprites.length === 0 && (
+                  {(selected.sprites ?? []).length === 0 && (
                     <div style={{ fontSize: 12, color: '#5e6e8a' }}>No sprites. Add one above.</div>
                   )}
                 </div>

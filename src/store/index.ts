@@ -237,7 +237,11 @@ export const useStore = create<AppState>((set, get) => ({
         povCharacter: null,
         ...n
       })),
-      characters: p.characters ?? [],
+      characters: (p.characters ?? []).map(c => ({
+        color: '#888888',
+        sprites: [],
+        ...c
+      })),
       variables: p.variables ?? [],
       assets: p.assets ?? [],
       edges: p.edges ?? [],
