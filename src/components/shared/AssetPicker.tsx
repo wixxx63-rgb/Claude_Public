@@ -3,6 +3,7 @@ import { useStore } from '../../store'
 import type { Asset, AssetType } from '../../types'
 import { v4 as uuidv4 } from 'uuid'
 import { fileUrl } from '../../utils/fileUrl'
+import { isElectron, openMediaFile } from '../../utils/fs'
 
 interface Props {
   type: AssetType
@@ -18,35 +19,42 @@ export default function AssetPicker({ type, value, assets, onChange, preview }: 
   const { project } = useStore(s => ({ project: s.project }))
 
   async function importAsset() {
-    const ext = type === 'image'
-      ? [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }]
-      : [{ name: 'Audio', extensions: ['mp3', 'ogg', 'wav', 'flac', 'm4a'] }]
+    const result = await openMediaFile(type)
+    if (!result) return
 
-    const filePath = await window.electronAPI?.openFile(ext)
-    if (!filePath) return
-
-    // Support both Windows (\) and Unix (/) path separators
-    const fileName = filePath.split(/[/\\]/).pop()!
-    const projectDir = project.projectPath
-      ? project.projectPath.replace(/[/\\][^/\\]+$/, '')
-      : null
-    if (!projectDir) {
-      alert('Please save your project first before importing assets.')
-      return
+    if (isElectron) {
+      // Electron: copy asset to project assets folder
+      const projectDir = project.projectPath
+        ? project.projectPath.replace(/[/\\][^/\\]+$/, '')
+        : null
+      if (!projectDir) {
+        alert('Please save your project first before importing assets.')
+        return
+      }
+      const destDir = projectDir + '/assets'
+      const destPath = await window.electronAPI?.copyAsset(result.path, destDir)
+      if (!destPath) return
+      const asset: Asset = {
+        id: uuidv4(),
+        name: result.name.replace(/\.[^.]+$/, ''),
+        type,
+        filename: result.name,
+        path: destPath
+      }
+      addAsset(asset)
+      onChange(asset.id)
+    } else {
+      // Browser: store as data URL inline
+      const asset: Asset = {
+        id: uuidv4(),
+        name: result.name.replace(/\.[^.]+$/, ''),
+        type,
+        filename: result.name,
+        path: result.path  // data URL
+      }
+      addAsset(asset)
+      onChange(asset.id)
     }
-    const destDir = projectDir + '/assets'
-    const destPath = await window.electronAPI?.copyAsset(filePath, destDir)
-    if (!destPath) return
-
-    const asset: Asset = {
-      id: uuidv4(),
-      name: fileName.replace(/\.[^.]+$/, ''),
-      type,
-      filename: fileName,
-      path: destPath
-    }
-    addAsset(asset)
-    onChange(asset.id)
     setShowPicker(false)
   }
 

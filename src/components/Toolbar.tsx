@@ -9,6 +9,7 @@ import HtmlExportModal from './HtmlExportModal'
 import CloudSync from './CloudSync'
 import { detectConflicts } from '../utils/conflictDetector'
 import { buildGrokHTML } from '../utils/grokExport'
+import { isElectron, saveTextFile, openTextFile } from '../utils/fs'
 
 export default function Toolbar() {
   const {
@@ -104,6 +105,12 @@ export default function Toolbar() {
   }, [undo, redo])
 
   async function handleSave() {
+    if (!isElectron) {
+      // Browser: always download
+      const ok = await saveTextFile(`${project.name}.nflow`, exportJSON(project), 'nflow')
+      if (ok) markSaved(null)
+      return
+    }
     let path = project.projectPath
     if (!path) {
       path = await window.electronAPI?.saveFile(
@@ -121,22 +128,12 @@ export default function Toolbar() {
   handleSaveRef.current = handleSave
 
   async function handleExportJSON() {
-    const path = await window.electronAPI?.saveFile(
-      [{ name: 'JSON', extensions: ['json'] }],
-      `${project.name}.json`
-    )
-    if (!path) return
-    const ok = await window.electronAPI?.writeFile(path, exportJSON(project))
+    const ok = await saveTextFile(`${project.name}.json`, exportJSON(project), 'json')
     if (ok) alert('Exported successfully.')
   }
 
   async function handleExportXML() {
-    const path = await window.electronAPI?.saveFile(
-      [{ name: 'XML', extensions: ['xml'] }],
-      `${project.name}.xml`
-    )
-    if (!path) return
-    const ok = await window.electronAPI?.writeFile(path, exportXML(project))
+    const ok = await saveTextFile(`${project.name}.xml`, exportXML(project), 'xml')
     if (ok) alert('Exported successfully.')
   }
 
@@ -146,28 +143,19 @@ export default function Toolbar() {
       alert('No grok-type nodes or grok handoff content found in this project.')
       return
     }
-    const path = await window.electronAPI?.saveFile(
-      [{ name: 'HTML File', extensions: ['html'] }],
-      `${project.name}-grok-scenes.html`
-    )
-    if (!path) return
     try {
       const html = buildGrokHTML(project)
-      const ok = await window.electronAPI?.writeFile(path, html)
-      if (ok) window.electronAPI?.showItemInFolder(path)
-      else alert('Grok export failed — could not write file.')
+      const ok = await saveTextFile(`${project.name}-grok-scenes.html`, html, 'html')
+      if (!ok) alert('Grok export failed — could not write file.')
     } catch (err: any) {
       alert(`Grok export failed: ${err?.message ?? String(err)}`)
     }
   }
 
   async function handleImport() {
-    const filePath = await window.electronAPI?.openFile([
-      { name: 'Story Files', extensions: ['json', 'xml', 'nflow'] }
-    ])
-    if (!filePath) return
-    const content = await window.electronAPI?.readFile(filePath)
-    if (!content) { alert('Could not read file.'); return }
+    const result = await openTextFile(['json', 'xml', 'nflow'], 'Story Files')
+    if (!result) return
+    const { name: filePath, content } = result
 
     if (!confirm('Import will replace the current project. Continue?')) return
 
@@ -185,7 +173,7 @@ export default function Toolbar() {
       assets: data.assets ?? [],
       playthroughs: data.playthroughs ?? [],
       writerRoom: data.writerRoom ?? [],
-      projectPath: filePath.endsWith('.nflow') ? filePath : null,
+      projectPath: (isElectron && filePath.endsWith('.nflow')) ? filePath : null,
       lastSaved: null
     }
     loadProject(newProject)
