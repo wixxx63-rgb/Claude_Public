@@ -6,6 +6,7 @@ import type { Project } from '../types'
 import CharacterManager from './CharacterManager'
 import VariableManager from './VariableManager'
 import HtmlExportModal from './HtmlExportModal'
+import CloudSync from './CloudSync'
 import { detectConflicts } from '../utils/conflictDetector'
 import { buildGrokHTML } from '../utils/grokExport'
 
@@ -51,6 +52,7 @@ export default function Toolbar() {
   const [showCharManager, setShowCharManager] = useState(false)
   const [showVarManager, setShowVarManager] = useState(false)
   const [showHtmlExport, setShowHtmlExport] = useState(false)
+  const [showCloudSync,  setShowCloudSync]  = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [searchVal, setSearchVal] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -342,6 +344,11 @@ export default function Toolbar() {
               title="Writer's Room"
             >Writer's Room</button>
 
+            {/* Cloud Sync */}
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', color: '#4a80d4' }}
+              onClick={() => setShowCloudSync(true)}
+              title="Sync project via GitHub Gist">☁ Sync</button>
+
             {/* Export HTML */}
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
               onClick={() => setShowHtmlExport(true)}
@@ -465,6 +472,7 @@ export default function Toolbar() {
       {showCharManager && <CharacterManager onClose={() => setShowCharManager(false)} />}
       {showVarManager && <VariableManager onClose={() => setShowVarManager(false)} />}
       {showHtmlExport && <HtmlExportModal onClose={() => setShowHtmlExport(false)} />}
+      {showCloudSync  && <CloudSync onClose={() => setShowCloudSync(false)} />}
     </>
   )
 }
