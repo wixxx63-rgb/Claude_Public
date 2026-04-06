@@ -1,0 +1,76 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [mobile-editor]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Install Android SDK platform 34
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "y" | $SDKMANAGER "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Build web app
+        working-directory: mobile
+        run: npm run build
+
+      - name: Sync Capacitor
+        working-directory: mobile
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        working-directory: mobile/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NarrativeFlow-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v1.0.${{ github.run_number }}
+          name: Narrative Flow Mobile v1.0.${{ github.run_number }}
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          body: |
+            Narrative Flow mobile editor APK (debug build).
+
+            **Install on Android:**
+            1. Download `app-debug.apk`
+            2. Settings → Apps → Special app access → Install unknown apps → allow your browser/file manager
+            3. Open the APK and install
