@@ -1,0 +1,62 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [mobile-editor]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Build web app
+        working-directory: mobile
+        run: npm run build
+
+      - name: Sync Capacitor
+        working-directory: mobile
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NarrativeFlow-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v1.0.${{ github.run_number }}
+          name: Narrative Flow Mobile v1.0.${{ github.run_number }}
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          body: |
+            Narrative Flow mobile editor APK.
+
+            **Install:** Download the APK, enable "Install from unknown sources" in Android settings, then open the file.
