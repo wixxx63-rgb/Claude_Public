@@ -428,8 +428,7 @@ export default function DetailPanel() {
           </div>
         )}
 
-        {/* Branches — hidden for POV nodes */}
-        {!node.isPov && (
+        {/* Branches */}
         <div className="field-row">
           <div className="section-header">
             <span className="section-title">Branches</span>
@@ -474,7 +473,6 @@ export default function DetailPanel() {
             />
           ))}
         </div>
-        )}
 
         {/* Connections */}
         <div className="field-row">
@@ -619,13 +617,11 @@ export default function DetailPanel() {
           >Next ▶</button>
         </div>
 
-        {!node.isPov && (
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginBottom: 6, fontSize: 12 }}
-            onClick={() => setShowAddChoices(true)}
-          >+ Add choices</button>
-        )}
+        <button
+          className="btn btn-primary"
+          style={{ width: '100%', marginBottom: 6, fontSize: 12 }}
+          onClick={() => setShowAddChoices(true)}
+        >+ Add choices</button>
 
         {/* + POV scene button + inline form */}
         {!showPovForm ? (
