@@ -6,3 +6,4 @@ dist-web/
 *.local
 .DS_Store
 release/
+mobile/android/
