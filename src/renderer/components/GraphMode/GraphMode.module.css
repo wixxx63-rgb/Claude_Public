@@ -1,0 +1,168 @@
+/* ─── Graph Mode Layout ──────────────────────────────────────────────────────*/
+
+.root {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: calc(100vh - 48px);
+  overflow: hidden;
+  position: relative;
+  background: #0d0d14;
+}
+
+/* ─── Canvas Area ────────────────────────────────────────────────────────────*/
+
+.canvasArea {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── Detail Panel ───────────────────────────────────────────────────────────*/
+
+.panel {
+  flex: 0 0 340px;
+  width: 340px;
+  height: 100%;
+  background: #111118;
+  border-left: 1px solid #222230;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 20;
+}
+
+/* ─── Minimap Overlay ────────────────────────────────────────────────────────*/
+
+.minimapWrap {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 10;
+  pointer-events: all;
+}
+
+/* ─── Link Mode Toolbar Hint ─────────────────────────────────────────────────*/
+
+.linkModeHint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 183, 0, 0.15);
+  border: 1px solid #ffb700;
+  color: #ffb700;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 4px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  z-index: 30;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+/* ─── Edge Label Popover ─────────────────────────────────────────────────────*/
+
+.popoverBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.popover {
+  background: #18181f;
+  border: 1px solid #333348;
+  border-radius: 8px;
+  padding: 18px 20px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+}
+
+.popover h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccccdd;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.popoverInput {
+  background: #0d0d14;
+  border: 1px solid #333348;
+  border-radius: 5px;
+  color: #e0e0f0;
+  font-size: 13px;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.popoverInput:focus {
+  border-color: #4a8cff;
+}
+
+.popoverActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btnCancel {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  border-radius: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btnCancel:hover {
+  background: #222;
+  color: #bbb;
+}
+
+.btnConfirm {
+  background: #4a8cff;
+  border: none;
+  color: #fff;
+  border-radius: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnConfirm:hover {
+  background: #3a7cef;
+}
+
+/* ─── Placeholder panel (when no DetailPanel component exists yet) ────────────*/
+
+.panelPlaceholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  text-align: center;
+  padding: 24px;
+  line-height: 1.6;
+}

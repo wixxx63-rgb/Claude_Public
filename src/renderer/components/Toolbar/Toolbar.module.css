@@ -1,0 +1,226 @@
+/* ─── Toolbar shell ─────────────────────────────────────────────────────────── */
+
+.toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  z-index: 200;
+  background: #0d0d18;
+  border-bottom: 1px solid #1e1e2e;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* ─── Sections ──────────────────────────────────────────────────────────────── */
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ─── App name ──────────────────────────────────────────────────────────────── */
+
+.appName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #c9a96e;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ─── Mode label ────────────────────────────────────────────────────────────── */
+
+.modeLabel {
+  font-size: 11px;
+  color: #555570;
+  background: #15152a;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ─── Back button ───────────────────────────────────────────────────────────── */
+
+.btnBack {
+  background: #1a1a2e;
+  border: 1px solid #3a3a5e;
+  color: #a0a0c0;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btnBack:hover {
+  background: #252545;
+  color: #d0d0e8;
+}
+
+/* ─── Generic button ────────────────────────────────────────────────────────── */
+
+.btn {
+  background: #16162a;
+  border: 1px solid #2a2a40;
+  color: #9090b0;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  height: 28px;
+  line-height: 1;
+}
+
+.btn:hover {
+  background: #1e1e38;
+  color: #c0c0d8;
+  border-color: #3a3a5a;
+}
+
+.btn:active {
+  background: #0d0d20;
+}
+
+/* ─── Active (link mode) button ─────────────────────────────────────────────── */
+
+.btnActive {
+  background: #2a2010;
+  border-color: #c9a96e;
+  color: #c9a96e;
+}
+
+.btnActive:hover {
+  background: #3a2e18;
+  color: #e0c080;
+}
+
+/* ─── Icon button ───────────────────────────────────────────────────────────── */
+
+.btnIcon {
+  background: transparent;
+  border: none;
+  color: #555570;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btnIcon:hover {
+  color: #9090b0;
+  background: #1a1a2e;
+}
+
+/* ─── Search input ──────────────────────────────────────────────────────────── */
+
+.searchInput {
+  background: #12121f;
+  border: 1px solid #2a2a40;
+  color: #c0c0d8;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  height: 28px;
+  box-sizing: border-box;
+  width: 140px;
+  outline: none;
+  transition: width 0.2s ease, border-color 0.15s;
+}
+
+.searchInput:focus {
+  width: 200px;
+  border-color: #5a5a80;
+  background: #16162a;
+}
+
+.searchInput::placeholder {
+  color: #44445a;
+}
+
+/* ─── Import dropdown wrapper ───────────────────────────────────────────────── */
+
+.importWrap {
+  position: relative;
+}
+
+.importMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #13131f;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 140px;
+  z-index: 300;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.importMenuItem {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #a0a0c0;
+  font-size: 12px;
+  padding: 7px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.importMenuItem:hover {
+  background: #1e1e36;
+  color: #e0e0f0;
+}
+
+/* ─── Save indicator ────────────────────────────────────────────────────────── */
+
+.saveIndicator {
+  font-size: 11px;
+  color: #44445a;
+  white-space: nowrap;
+  user-select: none;
+  padding: 0 4px;
+}
+
+.saveIndicatorDirty {
+  color: #b8860b;
+}
+
+.saveDot {
+  margin-right: 4px;
+  color: #c9a96e;
+}

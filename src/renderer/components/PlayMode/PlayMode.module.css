@@ -1,0 +1,259 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Background ─────────────────────────────────────────── */
+.background {
+  position: absolute;
+  inset: 0;
+}
+
+.bgImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.4s ease;
+}
+
+.bgImageOut {
+  opacity: 0;
+}
+
+.bgImageIn {
+  opacity: 0;
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.bgFallback {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, #0d0d14 0%, #1a1a2a 100%);
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+/* ── Sprites ────────────────────────────────────────────── */
+.sprites {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.spriteZone {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  padding-bottom: 160px;
+}
+
+.spriteImg {
+  max-height: 55vh;
+  max-width: 100%;
+  object-fit: contain;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform-origin: bottom center;
+}
+
+.spriteActive {
+  opacity: 1;
+  transform: scale(1.03);
+}
+
+.spriteDim {
+  opacity: 0.6;
+  filter: brightness(0.7);
+}
+
+/* ── Dialogue box ───────────────────────────────────────── */
+.dialogueBox {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 68%;
+  min-height: 120px;
+  background: rgba(5, 5, 15, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 18px 24px 28px;
+  backdrop-filter: blur(12px);
+  cursor: default;
+  pointer-events: all;
+}
+
+.speakerName {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dialogueText {
+  font-size: 17px;
+  line-height: 1.65;
+  color: #f0f0f0;
+}
+
+.advanceHint {
+  position: absolute;
+  bottom: 10px;
+  right: 16px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.9; }
+}
+
+/* ── Choices ────────────────────────────────────────────── */
+.choices {
+  position: absolute;
+  bottom: 180px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 400px;
+  max-width: 60%;
+  pointer-events: all;
+  cursor: default;
+}
+
+.choiceBtn {
+  padding: 14px 28px;
+  background: rgba(20, 20, 40, 0.88);
+  border: 1px solid rgba(100, 140, 255, 0.45);
+  border-radius: 8px;
+  color: #e0e0f0;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: left;
+  backdrop-filter: blur(8px);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.choiceBtn:hover {
+  background: rgba(60, 80, 180, 0.5);
+  border-color: rgba(100, 140, 255, 0.9);
+  transform: translateX(4px);
+}
+
+/* ── End screen ─────────────────────────────────────────── */
+.endScreen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: all;
+  cursor: default;
+}
+
+.endTitle {
+  font-size: 52px;
+  font-weight: 300;
+  color: #fff;
+  letter-spacing: 0.12em;
+  margin-bottom: 36px;
+}
+
+.endBtn {
+  padding: 12px 32px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.endBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+/* ── Transitions ────────────────────────────────────────── */
+.transitionOverlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
+
+.transitionFade {
+  animation: fadeInOut 0.5s ease forwards;
+}
+
+.transitionSlideLeft {
+  animation: slideLeft 0.4s ease forwards;
+}
+
+.transitionSlideRight {
+  animation: slideRight 0.4s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes slideLeft {
+  0% { transform: translateX(100%); opacity: 1; }
+  50% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slideRight {
+  0% { transform: translateX(-100%); opacity: 1; }
+  50% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* ── HUD ────────────────────────────────────────────────── */
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  pointer-events: all;
+  z-index: 10;
+}
+
+.backBtn {
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.15s ease;
+}
+
+.backBtn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+}
